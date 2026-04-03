@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.3] - 2026-04-04
+### Changed
+- Store WhatsApp sessions and history in `~/.bentos/parley/connect/whatsapp/` as JSON files, document the new paths, and drop the SQLite-backed database to simplify dependencies.
+- Improve Windows workflows: fall back to buffered CLI prompts, base64-encode TTS text before handing it to PowerShell, keep the updater temp directory around until the Windows script finishes, and remove the PID-based guard so the desktop launcher simply starts the server and opens the browser.
+
 ## [0.1.2] - 2026-04-03
 ### Changed
 - Quiet the dotenv loader and prevent the non-fatal load error from spamming startup logs.

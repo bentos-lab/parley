@@ -369,7 +369,6 @@ type msgSecretKey struct {
 
 type outgoingKey struct {
 	chat types.JID
-	alt  types.JID
 	id   types.MessageID
 }
 
@@ -1002,9 +1001,8 @@ func (s *memoryStore) GetPrivacyToken(ctx context.Context, user types.JID) (*sto
 
 // GetBufferedEvent returns a buffered event for the given hash.
 func (s *memoryStore) GetBufferedEvent(ctx context.Context, ciphertextHash [32]byte) (*store.BufferedEvent, error) {
-	key := string(ciphertextHash[:])
 	s.mu.RLock()
-	value, ok := s.bufferedEvents[key]
+	value, ok := s.bufferedEvents[string(ciphertextHash[:])]
 	s.mu.RUnlock()
 	if !ok {
 		return nil, nil
@@ -1015,9 +1013,8 @@ func (s *memoryStore) GetBufferedEvent(ctx context.Context, ciphertextHash [32]b
 
 // PutBufferedEvent stores a buffered event payload.
 func (s *memoryStore) PutBufferedEvent(ctx context.Context, ciphertextHash [32]byte, plaintext []byte, serverTimestamp time.Time) error {
-	key := string(ciphertextHash[:])
 	s.mu.Lock()
-	s.bufferedEvents[key] = store.BufferedEvent{
+	s.bufferedEvents[string(ciphertextHash[:])] = store.BufferedEvent{
 		Plaintext:  append([]byte(nil), plaintext...),
 		InsertTime: time.Now(),
 		ServerTime: serverTimestamp,
@@ -1033,11 +1030,10 @@ func (s *memoryStore) DoDecryptionTxn(ctx context.Context, fn func(context.Conte
 
 // ClearBufferedEventPlaintext removes the plaintext while preserving the record.
 func (s *memoryStore) ClearBufferedEventPlaintext(ctx context.Context, ciphertextHash [32]byte) error {
-	key := string(ciphertextHash[:])
 	s.mu.Lock()
-	if entry, ok := s.bufferedEvents[key]; ok {
+	if entry, ok := s.bufferedEvents[string(ciphertextHash[:])]; ok {
 		entry.Plaintext = nil
-		s.bufferedEvents[key] = entry
+		s.bufferedEvents[string(ciphertextHash[:])] = entry
 	}
 	s.mu.Unlock()
 	return nil
