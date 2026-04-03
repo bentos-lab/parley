@@ -1,0 +1,259 @@
+package main
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+
+	"github.com/spf13/cobra"
+
+	"github.com/bentos-lab/parley/adapter/outbound/tts/native"
+	"github.com/bentos-lab/parley/config"
+	"github.com/bentos-lab/parley/shared/install"
+)
+
+func newLoginCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "login",
+		Short: "Guided login for providers",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := cmd.Help(); err != nil {
+				return err
+			}
+			return fmt.Errorf("missing login target")
+		},
+	}
+	cmd.AddCommand(newLoginLLMCommand())
+	cmd.AddCommand(newLoginTTSCommand())
+	return cmd
+}
+
+func newLoginLLMCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "llm",
+		Short: "Configure the LLM provider",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			providers := []string{"openai", "anthropic", "gemini", "custom"}
+			labels := []string{"OpenAI", "Anthropic", "Gemini", "Custom"}
+			index, err := promptSelect("Select provider:", labels, 0)
+			if err != nil {
+				if errors.Is(err, errPromptAborted) {
+					return nil
+				}
+				return err
+			}
+			provider := providers[index]
+			var handlerErr error
+			switch provider {
+			case "openai", "anthropic", "gemini", "custom":
+				handlerErr = handleExistingProvider(provider)
+			default:
+				return fmt.Errorf("unsupported provider %q", provider)
+			}
+			if handlerErr != nil {
+				if errors.Is(handlerErr, errPromptAborted) {
+					return nil
+				}
+				return handlerErr
+			}
+			return nil
+		},
+	}
+}
+
+func handleExistingProvider(provider string) error {
+	labels := map[string]string{
+		"openai":    "https://api.openai.com/v1",
+		"anthropic": "https://api.anthropic.com/v1",
+		"gemini":    "https://generativelanguage.googleapis.com/v1beta/openai",
+	}
+	baseURL := ""
+	var err error
+	if provider == "custom" {
+		baseURL, err = promptRequired("Enter base URL:")
+		if err != nil {
+			return err
+		}
+	} else {
+		baseURL = labels[provider]
+	}
+	apiKey, err := promptRequired("Enter API key:")
+	if err != nil {
+		return err
+	}
+	model, err := promptModelSelection(provider)
+	if err != nil {
+		return err
+	}
+	cfgMap, err := config.ReadFileMap()
+	if err != nil {
+		return err
+	}
+	config.SetNestedValue(cfgMap, []string{"llm"}, "provider", "openai")
+	config.SetNestedValue(cfgMap, []string{"llm", "openai"}, "base_url", baseURL)
+	config.SetNestedValue(cfgMap, []string{"llm", "openai"}, "api_key", apiKey)
+	config.SetNestedValue(cfgMap, []string{"llm", "openai"}, "model", model)
+	if err := config.WriteFileMap(cfgMap); err != nil {
+		return err
+	}
+	writeStatus("Saved LLM Settings", []string{
+		fmt.Sprintf("Provider: %s", provider),
+		fmt.Sprintf("Model: %s", model),
+		fmt.Sprintf("Base URL: %s", baseURL),
+	})
+	return nil
+}
+
+func newLoginTTSCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "tts",
+		Short: "Configure the TTS provider",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			nativeInfo := native.CurrentInfo()
+			options := []string{nativeInfo.Label, "inworld"}
+			index, err := promptSelect("Select provider:", options, 0)
+			if err != nil {
+				if errors.Is(err, errPromptAborted) {
+					return nil
+				}
+				return err
+			}
+			if index == 0 {
+				return handleNativeTTS(nativeInfo)
+			}
+			return handleInworldTTS()
+		},
+	}
+}
+
+func handleInworldTTS() error {
+	apiKey, err := promptRequired("Enter Inworld API key:")
+	if err != nil {
+		if errors.Is(err, errPromptAborted) {
+			return nil
+		}
+		return err
+	}
+	models := []string{"inworld-tts-1.5-mini", "inworld-tts-1.5-max"}
+	index, err := promptSelect("Select Inworld model:", models, 1)
+	if err != nil {
+		if errors.Is(err, errPromptAborted) {
+			return nil
+		}
+		return err
+	}
+	cfgMap, err := config.ReadFileMap()
+	if err != nil {
+		return err
+	}
+	config.SetNestedValue(cfgMap, []string{"tts"}, "provider", "inworld")
+	config.SetNestedValue(cfgMap, []string{"tts", "inworld"}, "api_key", apiKey)
+	config.SetNestedValue(cfgMap, []string{"tts", "inworld"}, "model", models[index])
+	if err := config.WriteFileMap(cfgMap); err != nil {
+		return err
+	}
+	writeStatus("Saved Inworld TTS Settings", []string{
+		fmt.Sprintf("Model: %s", models[index]),
+	})
+	return nil
+}
+
+func handleNativeTTS(nativeInfo native.Info) error {
+	if nativeInfo.Executable != "" {
+		if _, err := exec.LookPath(nativeInfo.Executable); err != nil {
+			if nativeInfo.InstallCommand == "" {
+				writeStatus("Native TTS Missing", []string{
+					fmt.Sprintf("Tool: %s", nativeInfo.Label),
+					"Install command unavailable.",
+				})
+				return nil
+			}
+			ok, err := promptYesNo(fmt.Sprintf("Install %s now?", nativeInfo.Label), true)
+			if err != nil {
+				if errors.Is(err, errPromptAborted) {
+					return nil
+				}
+				return err
+			}
+			if ok {
+				if err := install.Run(nativeInfo.InstallCommand); err != nil {
+					writeStatus("Install Failed", []string{
+						fmt.Sprintf("Tool: %s", nativeInfo.Label),
+						fmt.Sprintf("Error: %v", err),
+					})
+					printInstallHelp(nativeInfo)
+					return nil
+				}
+				if _, err := exec.LookPath(nativeInfo.Executable); err != nil {
+					writeStatus("Native TTS Still Unavailable", []string{
+						fmt.Sprintf("Tool: %s", nativeInfo.Label),
+					})
+					printInstallHelp(nativeInfo)
+					return nil
+				}
+			} else {
+				printInstallHelp(nativeInfo)
+			}
+		}
+	}
+	if nativeInfo.ReadyMessage != "" {
+		writeStatus("Native TTS Ready", []string{
+			nativeInfo.ReadyMessage,
+		})
+		return setNativeTTSProvider()
+	}
+	writeStatus("Native TTS Ready", []string{
+		fmt.Sprintf("Tool: %s", nativeInfo.Label),
+	})
+	return setNativeTTSProvider()
+}
+
+func setNativeTTSProvider() error {
+	cfgMap, err := config.ReadFileMap()
+	if err != nil {
+		return err
+	}
+	config.SetNestedValue(cfgMap, []string{"tts"}, "provider", "native")
+	return config.WriteFileMap(cfgMap)
+}
+
+func printInstallHelp(nativeInfo native.Info) {
+	if nativeInfo.InstallLink == "" {
+		return
+	}
+	fmt.Fprintln(os.Stdout, "Install Guide")
+	fmt.Fprintln(os.Stdout, nativeInfo.InstallLink)
+}
+
+func writeStatus(title string, bullets []string) {
+	fmt.Fprintln(os.Stdout, title)
+	for _, bullet := range bullets {
+		fmt.Fprintln(os.Stdout, bullet)
+	}
+}
+
+func promptModelSelection(provider string) (string, error) {
+	if provider == "custom" {
+		return promptRequired("Enter model:")
+	}
+	var options []string
+	switch provider {
+	case "openai":
+		options = []string{"gpt-4o", "gpt-4.1", "gpt-4.1-mini", "Custom (enter manually)"}
+	case "anthropic":
+		options = []string{"claude-3-5-sonnet-latest", "claude-3-5-haiku-latest", "claude-3-opus-latest", "Custom (enter manually)"}
+	case "gemini":
+		options = []string{"gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash", "Custom (enter manually)"}
+	default:
+		return promptRequired("Enter model:")
+	}
+	index, err := promptSelect("Select model:", options, 0)
+	if err != nil {
+		return "", err
+	}
+	if index == len(options)-1 {
+		return promptRequired("Enter model:")
+	}
+	return options[index], nil
+}
