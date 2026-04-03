@@ -23,9 +23,7 @@ var version = "dev"
 // Parameters: none.
 // Returns: nothing.
 func main() {
-	if err := godotenv.Load(); err != nil {
-		log.Printf("load .env: %v", err)
-	}
+	godotenv.Load()
 	ctx := context.Background()
 	cfg, err := config.Load()
 	if err != nil {
