@@ -23,9 +23,10 @@ type releaseResponse struct {
 }
 
 // UpdateSelf downloads the latest release archives for the current platform and installs the binary.
-// Parameters: ctx controls network cancellation, writer receives progress logging.
+// Parameters: ctx controls network cancellation, writer receives progress logging,
+// currentVersion represents the version shipped with this binary.
 // Returns: an error if the download or installation fails.
-func UpdateSelf(ctx context.Context, writer io.Writer) error {
+func UpdateSelf(ctx context.Context, writer io.Writer, currentVersion string) error {
 	osName, arch, err := normalizePlatform(runtime.GOOS, runtime.GOARCH)
 	if err != nil {
 		return err
@@ -36,6 +37,13 @@ func UpdateSelf(ctx context.Context, writer io.Writer) error {
 	if err != nil {
 		return err
 	}
+
+	if currentVersion == version {
+		fmt.Fprintln(writer, "Up-to-date")
+		return nil
+	}
+
+	fmt.Fprintf(writer, "Current version: %s\n", currentVersion)
 	fmt.Fprintf(writer, "Latest version: %s\n", version)
 
 	fileName := fmt.Sprintf("%s-%s-%s-%s", unixBinaryName, version, osName, arch)
