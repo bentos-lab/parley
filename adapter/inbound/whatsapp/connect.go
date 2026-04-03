@@ -19,7 +19,6 @@ const (
 	connectDirName        = ".bentos/parley/connect"
 	connectWhatsAppSubDir = "whatsapp"
 	connectSessionName    = "session.json"
-	connectionWaitTimeout = 30 * time.Second
 )
 
 // Connect prints a WhatsApp QR code, drives the pairing flow, and blocks until
