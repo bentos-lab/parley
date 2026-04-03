@@ -16,7 +16,7 @@ func historyFilePathForTest(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
-	return filepath.Join(dir, connectDirName, "whatsapp.history.json")
+	return filepath.Join(dir, connectDirName, "whatsapp", "whatsapp.history.json")
 }
 
 // Test_historyStore_loadFilters ensures the loader strips out entries that do not start with /parley or [parley].

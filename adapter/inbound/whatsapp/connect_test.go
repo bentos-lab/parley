@@ -34,20 +34,21 @@ func TestConfirmSessionRemoval(t *testing.T) {
 
 func TestCleanupSessionFiles(t *testing.T) {
 	dir := t.TempDir()
-	base := filepath.Join(dir, "whatsapp.db")
-	for _, variant := range []string{"", "-wal", "-shm", "-journal"} {
-		require.NoError(t, os.WriteFile(base+variant, []byte("data"), 0o644))
-	}
+	base := filepath.Join(dir, "session.json")
+	history := filepath.Join(dir, "whatsapp.history.json")
+	require.NoError(t, os.WriteFile(base, []byte("data"), 0o644))
+	require.NoError(t, os.WriteFile(base+".tmp", []byte("tmp"), 0o644))
+	require.NoError(t, os.WriteFile(history, []byte("history"), 0o644))
 	require.NoError(t, cleanupSessionFiles(base))
-	for _, variant := range []string{"", "-wal", "-shm", "-journal"} {
-		_, err := os.Stat(base + variant)
+	for _, file := range []string{base, base + ".tmp", history} {
+		_, err := os.Stat(file)
 		require.True(t, os.IsNotExist(err))
 	}
 }
 
 func TestCleanupSessionFilesMissingVariants(t *testing.T) {
 	dir := t.TempDir()
-	base := filepath.Join(dir, "whatsapp.db")
+	base := filepath.Join(dir, "session.json")
 	require.NoError(t, os.WriteFile(base, []byte("data"), 0o644))
 	require.NoError(t, cleanupSessionFiles(base))
 	_, err := os.Stat(base)

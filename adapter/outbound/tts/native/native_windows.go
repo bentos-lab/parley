@@ -4,6 +4,7 @@ package native
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"os/exec"
@@ -40,12 +41,18 @@ func (c *Client) Synthesize(ctx context.Context, text string, voiceName string) 
 
 func buildPowerShellScript(wavPath string, text string) string {
 	path := escapePowerShellString(wavPath)
-	content := escapePowerShellString(text)
+
+	encoded := base64.StdEncoding.EncodeToString([]byte(text))
+
 	return strings.Join([]string{
 		"Add-Type -AssemblyName System.Speech",
 		"$synth = New-Object System.Speech.Synthesis.SpeechSynthesizer",
 		fmt.Sprintf("$synth.SetOutputToWaveFile('%s')", path),
-		fmt.Sprintf("$synth.Speak('%s')", content),
+
+		// decode base64 trong PowerShell
+		fmt.Sprintf("$text = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String('%s'))", encoded),
+
+		"$synth.Speak($text)",
 		"$synth.SetOutputToNull()",
 		"$synth.Dispose()",
 	}, "; ")

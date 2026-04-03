@@ -11,17 +11,14 @@ import (
 	"strings"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/mdp/qrterminal/v3"
 	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/store/sqlstore"
 )
 
 const (
 	connectDirName        = ".bentos/parley/connect"
-	connectDBName         = "whatsapp.db"
-	connectSQLiDsn        = "sqlite3"
-	connectFileFlag       = "?_foreign_keys=on"
+	connectWhatsAppSubDir = "whatsapp"
+	connectSessionName    = "session.json"
 	connectionWaitTimeout = 30 * time.Second
 )
 
@@ -50,8 +47,7 @@ func Connect(ctx context.Context) error {
 			return fmt.Errorf("cleanup existing session: %w", err)
 		}
 	}
-	dsn := fmt.Sprintf("file:%s%s", path, connectFileFlag)
-	container, err := sqlstore.New(ctx, connectSQLiDsn, dsn, nil)
+	container, err := newSessionContainer(path)
 	if err != nil {
 		return fmt.Errorf("open whatsapp store: %w", err)
 	}
@@ -124,15 +120,26 @@ func Connect(ctx context.Context) error {
 	}
 }
 
-// sessionPath returns the full path for the WhatsApp session database.
+// sessionPath returns the full path for the WhatsApp session JSON file.
 // Parameters: none.
 // Returns: the path and any error encountered while resolving the home directory.
 func sessionPath() (string, error) {
+	dir, err := whatsappConnectDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, connectSessionName), nil
+}
+
+// whatsappConnectDir returns the absolute directory that stores WhatsApp session data.
+// Parameters: none.
+// Returns: the WhatsApp session directory path and any error encountered while resolving the home directory.
+func whatsappConnectDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", fmt.Errorf("get home directory: %w", err)
 	}
-	return filepath.Join(home, connectDirName, connectDBName), nil
+	return filepath.Join(home, connectDirName, connectWhatsAppSubDir), nil
 }
 
 // sessionExists reports whether the WhatsApp session database already exists.
@@ -167,13 +174,13 @@ func confirmSessionRemoval(reader io.Reader, writer io.Writer) (bool, error) {
 	return response == "y" || response == "yes", nil
 }
 
-// cleanupSessionFiles removes the WhatsApp session database and its SQLite
-// sidecar files before a fresh pairing attempt.
-// Parameters: path is the base database filename.
+// cleanupSessionFiles removes the WhatsApp session JSON file and history cache before a fresh pairing attempt.
+// Parameters: path is the session filename.
 // Returns: any error encountered while removing existing files (ignores missing files).
 func cleanupSessionFiles(path string) error {
-	variants := []string{path, path + "-wal", path + "-shm", path + "-journal"}
-	for _, file := range variants {
+	history := filepath.Join(filepath.Dir(path), "whatsapp.history.json")
+	files := []string{path, path + ".tmp", history}
+	for _, file := range files {
 		if err := os.Remove(file); err != nil && !os.IsNotExist(err) {
 			return fmt.Errorf("remove %s: %w", file, err)
 		}

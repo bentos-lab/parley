@@ -157,11 +157,11 @@ func copyHistoryMap(src map[string][]core.ParleyCommandHistoryMessage) map[strin
 
 // defaultHistoryPath derives the hardcoded location for the WhatsApp history cache.
 // Parameters: none.
-// Returns: the default whatsapp.history.json path under the connect directory inside ~/.bentos.
+// Returns: the default whatsapp.history.json path under ~/.bentos/parley/connect/whatsapp.
 func defaultHistoryPath() (string, error) {
-	home, err := os.UserHomeDir()
+	dir, err := whatsappConnectDir()
 	if err != nil {
-		return "", fmt.Errorf("determine user home: %w", err)
+		return "", fmt.Errorf("determine history dir: %w", err)
 	}
-	return filepath.Join(home, connectDirName, "whatsapp.history.json"), nil
+	return filepath.Join(dir, "whatsapp.history.json"), nil
 }

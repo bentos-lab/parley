@@ -13,7 +13,6 @@ import (
 
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waE2E"
-	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	"google.golang.org/protobuf/proto"
@@ -50,8 +49,7 @@ func NewListener(ctx context.Context, usecases *wiring.Usecases, cfg config.Conf
 	if _, err := os.Stat(path); err != nil {
 		return nil, fmt.Errorf("whatsapp session missing: %w", err)
 	}
-	dsn := fmt.Sprintf("file:%s%s", path, connectFileFlag)
-	container, err := sqlstore.New(ctx, "sqlite3", dsn, nil)
+	container, err := newSessionContainer(path)
 	if err != nil {
 		return nil, fmt.Errorf("open whatsapp store: %w", err)
 	}
