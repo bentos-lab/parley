@@ -40,9 +40,9 @@ func buildWindowsScript(target, source, tmpDir string, pid int) string {
 	return fmt.Sprintf(`$target = %q
 $source = %q
 $tmp = %q
-$pid = %d
-while (Get-Process -Id $pid -ErrorAction SilentlyContinue) {
-    Start-Sleep -Seconds 1
+$parentPid = %d
+while (Get-Process -Id $parentPid -ErrorAction SilentlyContinue) {
+	Start-Sleep -Seconds 1
 }
 try {
     Move-Item -LiteralPath $source -Destination $target -Force

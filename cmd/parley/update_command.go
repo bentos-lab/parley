@@ -38,7 +38,7 @@ func newUpdateSelfCommand(ctx context.Context) *cobra.Command {
 			if len(args) > 0 {
 				return fmt.Errorf("update self does not accept arguments")
 			}
-			return cli.UpdateSelf(commandContext(cmd, ctx), cmd.OutOrStdout())
+			return cli.UpdateSelf(commandContext(cmd, ctx), cmd.OutOrStdout(), version)
 		},
 	}
 }
