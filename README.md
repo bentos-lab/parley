@@ -15,7 +15,7 @@ curl -fsSL https://raw.githubusercontent.com/bentos-lab/parley/master/install.sh
 #### Windows (powershell)
 
 ```bash
-iwr https://raw.githubusercontent.com/bentos-lab/peer/master/install.ps1 -useb | iex
+iwr https://raw.githubusercontent.com/bentos-lab/parley/master/install.ps1 -useb | iex
 ```
 
 ### Latest
