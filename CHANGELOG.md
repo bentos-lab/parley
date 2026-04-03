@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.4] - 2026-04-04
+### Changed
+- Prevent the `parley update self` command from re-downloading the current release by printing the current and latest versions and returning early when they match.
+- Clarify the Windows updater script by renaming the PID variable used to watch the parent process.
+
 ## [0.1.3] - 2026-04-04
 ### Changed
 - Store WhatsApp sessions and history in `~/.bentos/parley/connect/whatsapp/` as JSON files, document the new paths, and drop the SQLite-backed database to simplify dependencies.
