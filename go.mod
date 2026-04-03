@@ -15,12 +15,11 @@ require (
 	github.com/charmbracelet/huh v0.7.0
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/x/term v0.2.1
-	github.com/hraban/opus v0.0.0-20251117090126-c76ea7e21bf3
+	github.com/godeps/opus v1.0.3
 	github.com/joho/godotenv v1.5.1
 	github.com/pelletier/go-toml/v2 v2.2.2
 	github.com/spf13/cobra v1.8.1
 	github.com/stretchr/testify v1.11.1
-	github.com/webview/webview_go v0.0.0-20240831120633-6173450d4dd6
 	golang.org/x/sync v0.19.0
 	google.golang.org/protobuf v1.36.11
 )
@@ -59,6 +58,7 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/tetratelabs/wazero v1.9.0 // indirect
 	github.com/vektah/gqlparser/v2 v2.5.27 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	go.mau.fi/libsignal v0.2.1 // indirect

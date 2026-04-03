@@ -2,129 +2,140 @@ package main
 
 import (
 	"context"
-	"encoding/base64"
+	"errors"
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/bentos-lab/parley/config"
 	"github.com/bentos-lab/parley/wiring"
-	webview "github.com/webview/webview_go"
 )
 
 var desktopOpenURL = fmt.Sprintf("http://%s", defaultHTTPAddr)
 
-const (
-	launcherWidth  = 300
-	launcherHeight = 150
-)
-
-const launcherHTML = `<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>Parley desktop</title>
-    <style>
-      body {
-        margin: 0;
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        background: #f8fafc;
-        color: #0f172a;
-      }
-      .shell {
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        height: 100vh;
-        gap: 1rem;
-      }
-      .buttons {
-        display: flex;
-        gap: 0.5rem;
-      }
-      button {
-        border: none;
-        border-radius: 6px;
-        padding: 0.5rem 1.2rem;
-        font-size: 0.9rem;
-        font-weight: 600;
-        cursor: pointer;
-      }
-      button.primary {
-        background: #2563eb;
-        color: white;
-      }
-      button.secondary {
-        background: #e2e8f0;
-        color: #0f172a;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="shell">
-      <div>Parley server is running.</div>
-      <div class="buttons">
-        <button class="primary" onclick="desktopAction('open')">Open</button>
-        <button class="secondary" onclick="desktopAction('exit')">Exit</button>
-      </div>
-    </div>
-  </body>
-</html>`
-
-// runDesktopLauncher starts the shared serve engine and serves a minimal WebView control panel.
-// Parameters: ctx is the parent context, usecases and cfg configure services.
-// Returns: any fatal error from the HTTP server startup or UI run.
+// runDesktopLauncher starts the HTTP server with a CLI-friendly workflow for double-click launches.
+// Parameters: ctx is the parent context, usecases configures services, and cfg provides global configuration.
+// Returns: any fatal error occurred while running the HTTP server or managing the PID file.
 func runDesktopLauncher(ctx context.Context, usecases *wiring.Usecases, cfg config.Config) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	pidPath, err := desktopPIDPath()
+	if err != nil {
+		return fmt.Errorf("desktop: pid path: %w", err)
+	}
+
+	stopped, err := stopExistingInstance(pidPath)
+	if err != nil {
+		return fmt.Errorf("desktop: stop check: %w", err)
+	}
+	if stopped {
+		fmt.Println("Stopped. Run the binary again to start the server.")
+		return nil
+	}
+
 	engine := newServeEngine(ctx, usecases, cfg, defaultHTTPAddr)
 	go engine.startListener(ctx)
-
-	serverErrCh := make(chan error, 1)
-	go func() {
-		serverErrCh <- engine.runServer()
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer func() {
+		if err := engine.shutdown(shutdownCtx); err != nil {
+			log.Printf("desktop: shutdown failed: %v", err)
+		}
+		shutdownCancel()
 	}()
 
-	w := webview.New(false)
-	defer w.Destroy()
-	w.SetTitle("Parley")
-	w.SetSize(launcherWidth, launcherHeight, webview.Hint(webview.HintFixed))
-	if err := w.Bind("desktopAction", func(action string) error {
-		switch action {
-		case "open":
-			if err := openBrowser(desktopOpenURL); err != nil {
-				log.Printf("desktop: open browser failed: %v", err)
-			}
-		case "exit":
-			cancel()
-			w.Terminate()
+	if err := writeDesktopPID(pidPath); err != nil {
+		return fmt.Errorf("desktop: write pid: %w", err)
+	}
+	defer removeDesktopPID(pidPath)
+
+	fmt.Printf("Parley server listening on http://%s\n", defaultHTTPAddr)
+	fmt.Println("Double-click the binary again to stop the server.")
+
+	go func() {
+		time.Sleep(5 * time.Second)
+		if err := openBrowser(desktopOpenURL); err != nil {
+			log.Printf("desktop: open browser failed: %v", err)
 		}
-		return nil
-	}); err != nil {
-		return fmt.Errorf("desktop: bind failed: %w", err)
-	}
+	}()
 
-	w.Navigate(launcherURL())
-	w.Run()
-	cancel()
-
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer shutdownCancel()
-	if err := engine.shutdown(shutdownCtx); err != nil {
-		log.Printf("desktop: shutdown failed: %v", err)
-	}
-
-	return <-serverErrCh
+	return engine.runServer()
 }
 
-// launcherURL builds a data URL encoding the launcher HTML so no filesystem assets are required.
-func launcherURL() string {
-	encoded := base64.StdEncoding.EncodeToString([]byte(launcherHTML))
-	return "data:text/html;base64," + encoded
+// desktopPIDPath returns the path to the PID file stored in the user config directory,
+// and falls back to the temporary directory when the config directory cannot be used.
+func desktopPIDPath() (string, error) {
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		dir = os.TempDir()
+	}
+	path := filepath.Join(dir, "parley")
+	if err := os.MkdirAll(path, 0o755); err != nil {
+		path = filepath.Join(os.TempDir(), "parley")
+		if err := os.MkdirAll(path, 0o755); err != nil {
+			return "", err
+		}
+	}
+	return filepath.Join(path, "parley.pid"), nil
+}
+
+// writeDesktopPID records the current process PID in the designated file.
+// Parameters: pidPath is the file that should store the PID.
+// Returns: any error encountered while creating or writing the file.
+func writeDesktopPID(pidPath string) error {
+	pid := os.Getpid()
+	return os.WriteFile(pidPath, []byte(strconv.Itoa(pid)), 0o644)
+}
+
+// removeDesktopPID attempts to delete the PID file.
+// Parameters: pidPath is the previously recorded PID file path.
+// Returns: nothing, errors are ignored because removal is best-effort.
+func removeDesktopPID(pidPath string) {
+	_ = os.Remove(pidPath)
+}
+
+// stopExistingInstance kills an already running Parley process recorded in the PID file.
+// Parameters: pidPath is the PID file to inspect.
+// Returns: stopped=true when a running instance was terminated, or false when no stale PID was found.
+func stopExistingInstance(pidPath string) (bool, error) {
+	pid, err := readDesktopPID(pidPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		removeDesktopPID(pidPath)
+		return false, nil
+	}
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		removeDesktopPID(pidPath)
+		return false, nil
+	}
+	if err := proc.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		return false, err
+	}
+	removeDesktopPID(pidPath)
+	return true, nil
+}
+
+// readDesktopPID parses the PID stored in the PID file.
+// Parameters: pidPath is the file path that should contain the numeric PID.
+// Returns: the parsed PID or an error when the file is missing or malformed.
+func readDesktopPID(pidPath string) (int, error) {
+	data, err := os.ReadFile(pidPath)
+	if err != nil {
+		return 0, err
+	}
+	pid, err := strconv.Atoi(string(data))
+	if err != nil {
+		return 0, err
+	}
+	return pid, nil
 }
 
 // openBrowser launches the provided URL using a platform-appropriate command.

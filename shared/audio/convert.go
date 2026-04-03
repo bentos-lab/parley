@@ -9,7 +9,7 @@ import (
 	"math"
 	"os"
 
-	"github.com/hraban/opus"
+	"github.com/godeps/opus"
 )
 
 const (
