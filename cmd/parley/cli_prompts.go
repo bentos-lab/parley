@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
+	"os"
+	"runtime"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -56,13 +59,30 @@ func promptSelect(title string, options []string, defaultIndex int) (int, error)
 }
 
 func promptRequired(prompt string) (string, error) {
-	value := ""
-	input := huh.NewInput().Title(prompt).Value(&value).Validate(func(text string) error {
-		if strings.TrimSpace(text) == "" {
-			return fmt.Errorf("value is required")
+	if runtime.GOOS == "windows" {
+		// fallback
+		fmt.Print(prompt + " ")
+		reader := bufio.NewReader(os.Stdin)
+		text, _ := reader.ReadString('\n')
+		text = strings.TrimSpace(text)
+		if text == "" {
+			return "", fmt.Errorf("value is required")
 		}
-		return nil
-	})
+		return text, nil
+	}
+
+	// dùng huh cho non-windows
+	value := ""
+	input := huh.NewInput().
+		Title(prompt).
+		Value(&value).
+		Validate(func(text string) error {
+			if strings.TrimSpace(text) == "" {
+				return fmt.Errorf("value is required")
+			}
+			return nil
+		})
+
 	form := huh.NewForm(huh.NewGroup(input)).WithKeyMap(promptKeyMap())
 	if err := form.Run(); err != nil {
 		if errors.Is(err, huh.ErrUserAborted) {
@@ -70,6 +90,7 @@ func promptRequired(prompt string) (string, error) {
 		}
 		return "", fmt.Errorf("interactive prompt failed: %w", err)
 	}
+
 	return strings.TrimSpace(value), nil
 }
 

@@ -44,7 +44,6 @@ COMMIT=$(git rev-parse --short HEAD)
 LDFLAGS="-s -w \
   -X main.version=${VERSION} \
   -X main.commit=${COMMIT}"
-WINDOWS_LDFLAGS="-H=windowsgui"
 
 log "📦 Preparing web UI"
 pushd "$WEBUI_DIR" >/dev/null
@@ -77,13 +76,8 @@ for PLATFORM in "${PLATFORMS[@]}"; do
   log "🔧 Building ${GOOS}/${GOARCH}"
   TMP_DIR=$(mktemp -d)
 
-  CURRENT_LDFLAGS="${LDFLAGS}"
-  if [ "${GOOS}" = "windows" ]; then
-    CURRENT_LDFLAGS="${CURRENT_LDFLAGS} ${WINDOWS_LDFLAGS}"
-  fi
-
   env GOOS=${GOOS} GOARCH=${GOARCH} CGO_ENABLED=0 \
-    go build -ldflags="${CURRENT_LDFLAGS}" \
+    go build -ldflags="${LDFLAGS}" \
     -o "${TMP_DIR}/${BIN_NAME}" \
     ${ENTRYPOINT}
 

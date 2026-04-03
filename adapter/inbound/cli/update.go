@@ -48,7 +48,15 @@ func UpdateSelf(ctx context.Context, writer io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("create temp dir: %w", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	// The Windows helper script removes the temp folder after the binary is replaced,
+	// so keep the directory alive until that script completes; errors (or Unix flows)
+	// still clean it up via this closure.
+	cleanup := func() {
+		os.RemoveAll(tmpDir)
+	}
+	defer func() {
+		cleanup()
+	}()
 
 	archivePath := filepath.Join(tmpDir, archiveName)
 	if err := downloadFile(ctx, url, archivePath); err != nil {
@@ -73,6 +81,9 @@ func UpdateSelf(ctx context.Context, writer io.Writer) error {
 
 	if err := installSelf(writer, executablePath, extractedPath, tmpDir); err != nil {
 		return err
+	}
+	if osName == "windows" {
+		cleanup = func() {}
 	}
 	fmt.Fprintf(writer, "Update scheduled. Restart Parley to run the new binary.\n")
 	return nil
