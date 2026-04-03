@@ -17,6 +17,8 @@ type RuntimeInfo struct {
 	TTSModel   string
 }
 
+const llmProviderCustomLabel = "OpenAI-Compatible (Custom)"
+
 // printDebateHeader prints the debate header and agents list to the provided writer.
 // Parameters: writer is the output destination, debateItem is the debate to summarize, filename is the debate file name.
 // Returns: an error if writing fails.
@@ -132,7 +134,7 @@ func displayVoiceName(voiceName string) string {
 func resolveLLMProvider(baseURL string) string {
 	host := strings.ToLower(strings.TrimSpace(baseURL))
 	if host == "" {
-		return "custom"
+		return llmProviderCustomLabel
 	}
 	if strings.HasPrefix(host, "http://") || strings.HasPrefix(host, "https://") {
 		parsed, err := url.Parse(host)
@@ -148,7 +150,7 @@ func resolveLLMProvider(baseURL string) string {
 	case strings.Contains(host, "generativelanguage.googleapis.com"):
 		return "gemini"
 	default:
-		return "custom"
+		return llmProviderCustomLabel
 	}
 }
 

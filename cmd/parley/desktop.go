@@ -2,23 +2,79 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"log"
 	"os/exec"
 	"runtime"
 	"time"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/app"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/widget"
 	"github.com/bentos-lab/parley/config"
 	"github.com/bentos-lab/parley/wiring"
+	webview "github.com/webview/webview_go"
 )
 
 var desktopOpenURL = fmt.Sprintf("http://%s", defaultHTTPAddr)
 
-// runDesktopLauncher starts the shared serve engine and displays the Fyne launcher window.
+const (
+	launcherWidth  = 300
+	launcherHeight = 150
+)
+
+const launcherHTML = `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Parley desktop</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f8fafc;
+        color: #0f172a;
+      }
+      .shell {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        gap: 1rem;
+      }
+      .buttons {
+        display: flex;
+        gap: 0.5rem;
+      }
+      button {
+        border: none;
+        border-radius: 6px;
+        padding: 0.5rem 1.2rem;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button.primary {
+        background: #2563eb;
+        color: white;
+      }
+      button.secondary {
+        background: #e2e8f0;
+        color: #0f172a;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <div>Parley server is running.</div>
+      <div class="buttons">
+        <button class="primary" onclick="desktopAction('open')">Open</button>
+        <button class="secondary" onclick="desktopAction('exit')">Exit</button>
+      </div>
+    </div>
+  </body>
+</html>`
+
+// runDesktopLauncher starts the shared serve engine and serves a minimal WebView control panel.
 // Parameters: ctx is the parent context, usecases and cfg configure services.
 // Returns: any fatal error from the HTTP server startup or UI run.
 func runDesktopLauncher(ctx context.Context, usecases *wiring.Usecases, cfg config.Config) error {
@@ -33,31 +89,28 @@ func runDesktopLauncher(ctx context.Context, usecases *wiring.Usecases, cfg conf
 		serverErrCh <- engine.runServer()
 	}()
 
-	desktopApp := app.NewWithID("com.bentos.parley")
-	window := desktopApp.NewWindow("Parley")
-	window.SetCloseIntercept(func() {
-		cancel()
-		window.Close()
-	})
-
-	openButton := widget.NewButton("Open", func() {
-		if err := openBrowser(desktopOpenURL); err != nil {
-			log.Printf("desktop: open browser failed: %v", err)
+	w := webview.New(false)
+	defer w.Destroy()
+	w.SetTitle("Parley")
+	w.SetSize(launcherWidth, launcherHeight, webview.Hint(webview.HintFixed))
+	if err := w.Bind("desktopAction", func(action string) error {
+		switch action {
+		case "open":
+			if err := openBrowser(desktopOpenURL); err != nil {
+				log.Printf("desktop: open browser failed: %v", err)
+			}
+		case "exit":
+			cancel()
+			w.Terminate()
 		}
-	})
-	exitButton := widget.NewButton("Exit", func() {
-		cancel()
-		window.Close()
-	})
+		return nil
+	}); err != nil {
+		return fmt.Errorf("desktop: bind failed: %w", err)
+	}
 
-	window.SetContent(container.NewVBox(
-		widget.NewLabel("Parley server running"),
-		container.NewHBox(openButton, exitButton),
-	))
-	window.Resize(fyne.NewSize(300, 150))
-	window.CenterOnScreen()
-
-	desktopApp.Run()
+	w.Navigate(launcherURL())
+	w.Run()
+	cancel()
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
@@ -66,6 +119,12 @@ func runDesktopLauncher(ctx context.Context, usecases *wiring.Usecases, cfg conf
 	}
 
 	return <-serverErrCh
+}
+
+// launcherURL builds a data URL encoding the launcher HTML so no filesystem assets are required.
+func launcherURL() string {
+	encoded := base64.StdEncoding.EncodeToString([]byte(launcherHTML))
+	return "data:text/html;base64," + encoded
 }
 
 // openBrowser launches the provided URL using a platform-appropriate command.

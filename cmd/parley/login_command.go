@@ -13,6 +13,8 @@ import (
 	"github.com/bentos-lab/parley/shared/install"
 )
 
+const providerCustom = "custom"
+
 func newLoginCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "login",
@@ -34,8 +36,8 @@ func newLoginLLMCommand() *cobra.Command {
 		Use:   "llm",
 		Short: "Configure the LLM provider",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			providers := []string{"openai", "anthropic", "gemini", "custom"}
-			labels := []string{"OpenAI", "Anthropic", "Gemini", "Custom"}
+			providers := []string{"openai", "anthropic", "gemini", providerCustom}
+			labels := []string{"OpenAI", "Anthropic", "Gemini", "OpenAI-Compatible (Custom)"}
 			index, err := promptSelect("Select provider:", labels, 0)
 			if err != nil {
 				if errors.Is(err, errPromptAborted) {
@@ -46,7 +48,7 @@ func newLoginLLMCommand() *cobra.Command {
 			provider := providers[index]
 			var handlerErr error
 			switch provider {
-			case "openai", "anthropic", "gemini", "custom":
+			case "openai", "anthropic", "gemini", providerCustom:
 				handlerErr = handleExistingProvider(provider)
 			default:
 				return fmt.Errorf("unsupported provider %q", provider)
@@ -70,7 +72,7 @@ func handleExistingProvider(provider string) error {
 	}
 	baseURL := ""
 	var err error
-	if provider == "custom" {
+	if provider == providerCustom {
 		baseURL, err = promptRequired("Enter base URL:")
 		if err != nil {
 			return err
@@ -234,7 +236,7 @@ func writeStatus(title string, bullets []string) {
 }
 
 func promptModelSelection(provider string) (string, error) {
-	if provider == "custom" {
+	if provider == providerCustom {
 		return promptRequired("Enter model:")
 	}
 	var options []string

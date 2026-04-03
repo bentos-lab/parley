@@ -59,6 +59,7 @@ func newRootCommand(ctx context.Context, usecases *wiring.Usecases, runtime cli.
 			if len(args) > 0 {
 				return fmt.Errorf("unknown command: %s", args[0])
 			}
+
 			return runDesktopLauncher(commandContext(cmd, ctx), usecases, cfg)
 		},
 	}
