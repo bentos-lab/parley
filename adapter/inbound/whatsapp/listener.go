@@ -286,7 +286,7 @@ func (l *Listener) handleList() string {
 		return "[parley] No debates available."
 	}
 	var ids []string
-	for _, item := range result.Items[:10] { // maximum 10 items sent to user
+	for _, item := range result.Items[:min(len(result.Items), 10)] { // maximum 10 items sent to user
 		ids = append(ids, item.ID)
 	}
 	return fmt.Sprintf("[parley] Debates:\n%s", strings.Join(ids, "\n"))
