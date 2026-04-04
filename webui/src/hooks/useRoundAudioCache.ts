@@ -538,6 +538,7 @@ export function useRoundAudioCache() {
         skipPrevious();
     }, []);
 
+    /** Seek the current item by a relative offset in seconds (negative = rewind) */
     const seekBy = useCallback((seconds: number) => {
         seekBySeconds(seconds);
     }, []);

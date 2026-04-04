@@ -244,6 +244,7 @@ function ChapterRow({ debate, roundIndex }: { debate: Debate; roundIndex: number
     const isPlaying = audioState.status === 'playing';
     const isLoading = audioState.status === 'loading';
     const hasError = audioState.status === 'error';
+    // isActive: round is loaded and ready or currently playing — enables seek buttons
     const isActive = isPlaying || audioState.status === 'ready';
 
     return (
