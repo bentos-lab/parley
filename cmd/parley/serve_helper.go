@@ -16,8 +16,8 @@ const defaultHTTPAddr = "localhost:8080"
 
 // serveEngine holds the shared HTTP server and optional WhatsApp listener.
 type serveEngine struct {
-	server   *http.Server
-	listener *whatsapp.Listener
+	server           *http.Server
+	whatsappListener *whatsapp.Listener
 }
 
 // newServeEngine creates the HTTP server and tries to initialize the WhatsApp listener.
@@ -25,35 +25,35 @@ type serveEngine struct {
 // Returns: the ready-to-run engine instance.
 func newServeEngine(ctx context.Context, usecases *wiring.Usecases, cfg config.Config, addr string) *serveEngine {
 	server := rest.NewServer(addr)
-	var listener *whatsapp.Listener
+	var whatsappListener *whatsapp.Listener
 	if usecases != nil {
 		l, err := whatsapp.NewListener(ctx, usecases, cfg)
 		if err != nil {
-			log.Printf("WhatsApp listener disabled: %v", err)
+			log.Printf("WhatsApp listener disabled")
 		} else {
-			listener = l
+			whatsappListener = l
 		}
 	}
 	return &serveEngine{
-		server:   server,
-		listener: listener,
+		server:           server,
+		whatsappListener: whatsappListener,
 	}
 }
 
-// startListener begins the WhatsApp listener if it was initialized.
+// startWhatsAppListener begins the WhatsApp listener if it was initialized.
 // Parameters: ctx controls the listener lifecycle.
 // Returns: nothing.
-func (e *serveEngine) startListener(ctx context.Context) {
-	if e == nil || e.listener == nil {
+func (e *serveEngine) startWhatsAppListener(ctx context.Context) {
+	if e == nil || e.whatsappListener == nil {
 		return
 	}
-	e.listener.Start(ctx)
+	e.whatsappListener.Start(ctx)
 }
 
-// runServer starts listening on the HTTP server and normalizes ErrServerClosed to nil.
+// runRestServer starts listening on the HTTP server and normalizes ErrServerClosed to nil.
 // Parameters: none.
 // Returns: any fatal listen error.
-func (e *serveEngine) runServer() error {
+func (e *serveEngine) runRestServer() error {
 	if e == nil || e.server == nil {
 		return nil
 	}

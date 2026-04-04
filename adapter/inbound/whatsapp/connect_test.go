@@ -1,56 +1,64 @@
 package whatsapp
 
 import (
-	"bytes"
+	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.mau.fi/whatsmeow/types"
 )
 
-func TestConfirmSessionRemoval(t *testing.T) {
-	cases := []struct {
-		name     string
-		input    string
-		expected bool
-	}{
-		{name: "yes", input: "yes\n", expected: true},
-		{name: "y uppercase", input: "Y\n", expected: true},
-		{name: "no", input: "n\n", expected: false},
-		{name: "empty", input: "\n", expected: false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			var out bytes.Buffer
-			result, err := confirmSessionRemoval(strings.NewReader(tc.input), &out)
-			require.NoError(t, err)
-			require.Equal(t, tc.expected, result)
-			require.Contains(t, out.String(), "Remove it and continue?")
-		})
-	}
-}
-
-func TestCleanupSessionFiles(t *testing.T) {
+func TestRemoveSession(t *testing.T) {
 	dir := t.TempDir()
-	base := filepath.Join(dir, "session.json")
-	history := filepath.Join(dir, "whatsapp.history.json")
-	require.NoError(t, os.WriteFile(base, []byte("data"), 0o644))
-	require.NoError(t, os.WriteFile(base+".tmp", []byte("tmp"), 0o644))
+	t.Setenv("HOME", dir)
+	path, err := sessionPath()
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	history := filepath.Join(filepath.Dir(path), "whatsapp.history.json")
+	require.NoError(t, os.WriteFile(path, []byte("data"), 0o644))
+	require.NoError(t, os.WriteFile(path+".tmp", []byte("tmp"), 0o644))
 	require.NoError(t, os.WriteFile(history, []byte("history"), 0o644))
-	require.NoError(t, cleanupSessionFiles(base))
-	for _, file := range []string{base, base + ".tmp", history} {
+	require.NoError(t, RemoveSession())
+	for _, file := range []string{path, path + ".tmp", history} {
 		_, err := os.Stat(file)
 		require.True(t, os.IsNotExist(err))
 	}
 }
 
-func TestCleanupSessionFilesMissingVariants(t *testing.T) {
+func TestRemoveSessionMissingVariants(t *testing.T) {
 	dir := t.TempDir()
-	base := filepath.Join(dir, "session.json")
-	require.NoError(t, os.WriteFile(base, []byte("data"), 0o644))
-	require.NoError(t, cleanupSessionFiles(base))
-	_, err := os.Stat(base)
+	t.Setenv("HOME", dir)
+	path, err := sessionPath()
+	require.NoError(t, err)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+	require.NoError(t, os.WriteFile(path, []byte("data"), 0o644))
+	require.NoError(t, RemoveSession())
+	_, err = os.Stat(path)
 	require.True(t, os.IsNotExist(err))
+}
+
+func TestGetDeviceMissingSession(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	_, err := getDevice(context.Background())
+	require.ErrorIs(t, err, os.ErrNotExist)
+}
+
+func TestGetDeviceExistingSession(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	path, err := sessionPath()
+	require.NoError(t, err)
+	container, err := newSessionContainer(path)
+	require.NoError(t, err)
+	device, err := container.GetFirstDevice(context.Background())
+	require.NoError(t, err)
+	device.ID = &types.JID{User: "12345", Server: types.DefaultUserServer}
+	require.NoError(t, device.Save(context.Background()))
+
+	got, err := getDevice(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, device.GetJID().String(), got.GetJID().String())
 }

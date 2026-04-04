@@ -24,9 +24,9 @@ func newServeCommand(usecases *wiring.Usecases, cfg config.Config) *cobra.Comman
 			}
 			reqCtx := commandContext(cmd, context.Background())
 			engine := newServeEngine(reqCtx, usecases, cfg, httpAddr)
-			engine.startListener(reqCtx)
+			engine.startWhatsAppListener(reqCtx)
 			log.Printf("HTTP server listening on http://%s", httpAddr)
-			return engine.runServer()
+			return engine.runRestServer()
 		},
 	}
 	cmd.Flags().String("addr", "localhost:8080", "HTTP listen address")

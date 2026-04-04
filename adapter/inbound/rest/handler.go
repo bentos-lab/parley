@@ -1,12 +1,15 @@
 package rest
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"os/exec"
 
 	"github.com/go-chi/chi/v5"
+	"go.mau.fi/whatsmeow"
 
+	"github.com/bentos-lab/parley/adapter/inbound/whatsapp"
 	"github.com/bentos-lab/parley/config"
 	"github.com/bentos-lab/parley/shared/install"
 	"github.com/bentos-lab/parley/wiring"
@@ -14,8 +17,11 @@ import (
 
 // Handler exposes HTTP endpoints for debates.
 type Handler struct {
-	lookPath   func(string) (string, error)
-	runInstall func(string) error
+	lookPath              func(string) (string, error)
+	runInstall            func(string) error
+	checkWhatsAppSession  func(context.Context) (bool, error)
+	removeWhatsAppSession func() error
+	connectWhatsApp       func(context.Context) (whatsmeow.QRChannelItem, func(context.Context) error, func(context.Context) error, error)
 }
 
 // HandlerOption configures optional handler behavior used in tests.
@@ -41,13 +47,43 @@ func WithRunInstall(fn func(string) error) HandlerOption {
 	}
 }
 
+// WithCheckWhatsAppSession installs a custom hook for checking WhatsApp sessions.
+// Parameters: fn is the session check function.
+// Returns: the option for chaining.
+func WithCheckWhatsAppSession(fn func(context.Context) (bool, error)) HandlerOption {
+	return func(h *Handler) {
+		h.checkWhatsAppSession = fn
+	}
+}
+
+// WithRemoveWhatsAppSession installs a custom hook for removing WhatsApp sessions.
+// Parameters: fn is the session removal function.
+// Returns: the option for chaining.
+func WithRemoveWhatsAppSession(fn func() error) HandlerOption {
+	return func(h *Handler) {
+		h.removeWhatsAppSession = fn
+	}
+}
+
+// WithConnectWhatsApp installs a custom hook for connecting WhatsApp sessions.
+// Parameters: fn is the connect function.
+// Returns: the option for chaining.
+func WithConnectWhatsApp(fn func(context.Context) (whatsmeow.QRChannelItem, func(context.Context) error, func(context.Context) error, error)) HandlerOption {
+	return func(h *Handler) {
+		h.connectWhatsApp = fn
+	}
+}
+
 // NewHandler creates a new HTTP handler instance.
 // Parameters: options override handler dependencies for testing.
 // Returns: a configured handler instance.
 func NewHandler(options ...HandlerOption) *Handler {
 	h := &Handler{
-		lookPath:   exec.LookPath,
-		runInstall: install.Run,
+		lookPath:              exec.LookPath,
+		runInstall:            install.Run,
+		checkWhatsAppSession:  whatsapp.CheckExisted,
+		removeWhatsAppSession: whatsapp.RemoveSession,
+		connectWhatsApp:       whatsapp.Connect,
 	}
 	for _, option := range options {
 		option(h)
@@ -62,6 +98,9 @@ func (h *Handler) Routes(router chi.Router) {
 	router.Get("/config", h.getConfig)
 	router.Put("/config", h.updateConfig)
 
+	router.Get("/connect/whatsapp", h.connectWhatsAppSession)
+	router.Delete("/connect/whatsapp", h.deleteWhatsAppSession)
+
 	router.Post("/debates", h.createDebate)
 	router.Get("/debates", h.listDebates)
 	router.Get("/debates/{id}", h.getDebate)
@@ -74,6 +113,9 @@ func (h *Handler) Routes(router chi.Router) {
 	router.Get("/debates/{id}/audio", h.getAudio)
 }
 
+// loadUsecases loads the runtime configuration and usecases for request handlers.
+// Parameters: w is the response writer used for emitting error responses.
+// Returns: the usecases, the loaded config, and a boolean indicating success.
 func (h *Handler) loadUsecases(w http.ResponseWriter) (*wiring.Usecases, config.Config, bool) {
 	cfg, err := config.Load()
 	if err != nil {

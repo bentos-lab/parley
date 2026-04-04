@@ -22,7 +22,7 @@ func runDesktopLauncher(ctx context.Context, usecases *wiring.Usecases, cfg conf
 	defer cancel()
 
 	engine := newServeEngine(ctx, usecases, cfg, defaultHTTPAddr)
-	go engine.startListener(ctx)
+	go engine.startWhatsAppListener(ctx)
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer func() {
 		if err := engine.shutdown(shutdownCtx); err != nil {
@@ -39,7 +39,7 @@ func runDesktopLauncher(ctx context.Context, usecases *wiring.Usecases, cfg conf
 		}
 	}()
 
-	return engine.runServer()
+	return engine.runRestServer()
 }
 
 // openBrowser launches the provided URL using a platform-appropriate command.

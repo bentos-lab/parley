@@ -42,18 +42,7 @@ type Listener struct {
 // Parameters: ctx controls cancellation, usecases provides the debate usecases, cfg drives provider settings.
 // Returns: listener ready to start and any error encountered while preparing the WhatsApp client.
 func NewListener(ctx context.Context, usecases *wiring.Usecases, cfg config.Config) (*Listener, error) {
-	path, err := sessionPath()
-	if err != nil {
-		return nil, err
-	}
-	if _, err := os.Stat(path); err != nil {
-		return nil, fmt.Errorf("whatsapp session missing: %w", err)
-	}
-	container, err := newSessionContainer(path)
-	if err != nil {
-		return nil, fmt.Errorf("open whatsapp store: %w", err)
-	}
-	device, err := container.GetFirstDevice(ctx)
+	device, err := getDevice(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("read device: %w", err)
 	}
