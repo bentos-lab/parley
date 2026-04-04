@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import type { LoaderFunctionArgs } from 'react-router-dom';
 import { useLoaderData } from 'react-router-dom';
+import { useToast } from '@/components/ui/ToastProvider';
 import { getDebate } from '@/services/api/debates';
-import { debateAudioUrl, getRoundAudio } from '@/services/api/audio';
+import { getErrorMessage } from '@/services/api/http';
+import { debateAudioUrl } from '@/services/api/audio';
 import { DebateSchema } from '@/services/api/schemas';
+import { useRoundAudioCache, useRoundAudioStatus } from '@/hooks/useRoundAudioCache';
 import type { Debate } from '@/types';
 
 // ---------------------------------------------------------------------------
@@ -189,123 +192,95 @@ function Waveform({ progress, onSeek }: { progress: number; onSeek: (pct: number
 }
 
 // ---------------------------------------------------------------------------
-// Chapters with per-turn audio play buttons and real durations
+// Chapters with per-turn audio play buttons (uses shared cache)
 // ---------------------------------------------------------------------------
+
+function ChapterRow({ debate, roundIndex }: { debate: Debate; roundIndex: number }) {
+    const round = debate.rounds[roundIndex];
+    const isUser = !round.agent_id;
+    const agent = isUser ? null : debate.agents.find((a) => a.id === round.agent_id);
+    const idx = isUser ? -1 : agentIndex(debate, round.agent_id);
+    const color = isUser ? USER_COLOR : agentColor(idx);
+
+    const audioState = useRoundAudioStatus(debate.id, roundIndex);
+    const { play } = useRoundAudioCache();
+
+    const isPlaying = audioState.status === 'playing';
+    const isLoading = audioState.status === 'loading';
+    const hasError = audioState.status === 'error';
+
+    return (
+        <div
+            className={`flex items-center gap-2.5 py-[7px] group ${roundIndex < debate.rounds.length - 1 ? 'border-b border-border' : ''}`}
+        >
+            <span className='font-mono text-[9px] text-text-3 w-4'>
+                {String(roundIndex + 1).padStart(2, '0')}
+            </span>
+            <span className='h-1.5 w-1.5 rounded-full shrink-0' style={{ background: color }} />
+            <span className='flex-1 text-xs text-text-2 group-hover:text-text-1 transition-colors'>
+                {agent ? agent.name : 'You'} — Round {roundIndex + 1}
+            </span>
+            <span className='font-mono text-[10px] text-text-3 mr-2'>
+                {audioState.duration != null ? formatTime(audioState.duration) : '—'}
+            </span>
+            <button
+                type='button'
+                onClick={() => {
+                    void play(debate.id, roundIndex);
+                }}
+                className='flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border text-text-3 cursor-pointer transition-colors hover:border-accent hover:text-accent disabled:opacity-40 disabled:cursor-wait'
+                disabled={isLoading}
+                aria-label={
+                    isPlaying ? `Pause round ${roundIndex + 1}` : `Play round ${roundIndex + 1}`
+                }
+                title={
+                    hasError
+                        ? 'Round audio unavailable'
+                        : isLoading
+                          ? 'Loading…'
+                          : isPlaying
+                            ? `Pause round ${roundIndex + 1}`
+                            : `Play round ${roundIndex + 1}`
+                }
+            >
+                {isLoading ? (
+                    <svg
+                        viewBox='0 0 24 24'
+                        fill='none'
+                        stroke='currentColor'
+                        strokeWidth='2'
+                        strokeLinecap='round'
+                        className='w-2.5 h-2.5 animate-spin'
+                        aria-hidden
+                    >
+                        <circle cx='12' cy='12' r='9' strokeOpacity='0.25' />
+                        <path d='M12 3a9 9 0 0 1 9 9' />
+                    </svg>
+                ) : hasError ? (
+                    <svg
+                        viewBox='0 0 24 24'
+                        fill='none'
+                        stroke='currentColor'
+                        strokeWidth='2'
+                        strokeLinecap='round'
+                        className='w-2.5 h-2.5 text-error'
+                        aria-hidden
+                    >
+                        <circle cx='12' cy='12' r='9' />
+                        <line x1='12' y1='8' x2='12' y2='12' />
+                        <circle cx='12' cy='16' r='0.75' fill='currentColor' />
+                    </svg>
+                ) : isPlaying ? (
+                    <IconPauseSmall />
+                ) : (
+                    <IconPlaySmall />
+                )}
+            </button>
+        </div>
+    );
+}
+
 function Chapters({ debate }: { debate: Debate }) {
-    const [playingIndex, setPlayingIndex] = useState<number | null>(null);
-    const [loadingIndex, setLoadingIndex] = useState<number | null>(null);
-    const [roundDurations, setRoundDurations] = useState<Map<number, number>>(new Map());
-    const [roundErrors, setRoundErrors] = useState<Map<number, boolean>>(new Map());
-    const roundAudioRef = useRef<HTMLAudioElement>(null);
-    const cachedRoundUrls = useRef<Map<number, string>>(new Map());
-    const inFlightLoads = useRef<Map<number, Promise<string | null>>>(new Map());
-    const activeRoundIndexRef = useRef<number | null>(null);
-    const requestedRoundIndexRef = useRef<number | null>(null);
-
-    useEffect(() => {
-        const cache = cachedRoundUrls.current;
-        return () => {
-            cache.forEach((url) => URL.revokeObjectURL(url));
-            cache.clear();
-        };
-    }, []);
-
-    const loadRound = useCallback(
-        async (index: number) => {
-            const cachedUrl = cachedRoundUrls.current.get(index);
-            if (cachedUrl) {
-                return cachedUrl;
-            }
-
-            const existingLoad = inFlightLoads.current.get(index);
-            if (existingLoad) {
-                return existingLoad;
-            }
-
-            setLoadingIndex(index);
-            setRoundErrors((prev) => {
-                const next = new Map(prev);
-                next.delete(index);
-                return next;
-            });
-
-            const loadPromise = getRoundAudio(debate.id, index)
-                .then((blob) => {
-                    const url = URL.createObjectURL(blob);
-                    cachedRoundUrls.current.set(index, url);
-                    return url;
-                })
-                .catch(() => {
-                    setRoundErrors((prev) => new Map(prev).set(index, true));
-                    return null;
-                })
-                .finally(() => {
-                    inFlightLoads.current.delete(index);
-                    setLoadingIndex((current) => (current === index ? null : current));
-                });
-
-            inFlightLoads.current.set(index, loadPromise);
-            return loadPromise;
-        },
-        [debate.id],
-    );
-
-    const handlePlay = useCallback(
-        async (index: number) => {
-            const el = roundAudioRef.current;
-            if (!el) return;
-
-            if (playingIndex === index) {
-                el.pause();
-                setPlayingIndex(null);
-                return;
-            }
-
-            el.pause();
-            el.currentTime = 0;
-            requestedRoundIndexRef.current = index;
-
-            const url = await loadRound(index);
-            if (!url || requestedRoundIndexRef.current !== index) {
-                return;
-            }
-
-            activeRoundIndexRef.current = index;
-            if (el.src !== url) {
-                el.src = url;
-                el.load();
-            }
-
-            try {
-                await el.play();
-                setPlayingIndex(index);
-            } catch {
-                setRoundErrors((prev) => new Map(prev).set(index, true));
-                setPlayingIndex(null);
-            }
-        },
-        [loadRound, playingIndex],
-    );
-
-    function handleLoadedMetadata(el: HTMLAudioElement) {
-        const index = activeRoundIndexRef.current;
-        if (index == null) return;
-        if (!isNaN(el.duration) && isFinite(el.duration)) {
-            setRoundDurations((prev) => new Map(prev).set(index, el.duration));
-        }
-    }
-
-    // Calculate cumulative start times from real durations
-    const cumulativeTimes = useMemo(() => {
-        const times: Array<number | null> = [0];
-        for (let i = 0; i < debate.rounds.length; i++) {
-            const currentStart = times[i];
-            const dur = roundDurations.get(i);
-            times.push(currentStart != null && dur != null ? currentStart + dur : null);
-        }
-        return times;
-    }, [debate.rounds.length, roundDurations]);
-
     return (
         <div className='rounded-xl border border-border bg-bg-panel p-4 mt-4'>
             <div className='mb-2 text-[9px] font-semibold uppercase tracking-[0.08em] text-text-3'>
@@ -322,99 +297,9 @@ function Chapters({ debate }: { debate: Debate }) {
                 <span className='font-mono text-[10px] text-text-3'>0:00</span>
             </div>
 
-            <audio
-                ref={roundAudioRef}
-                preload='none'
-                onLoadedMetadata={(e) => handleLoadedMetadata(e.currentTarget)}
-                onEnded={() => setPlayingIndex(null)}
-            />
-
-            {debate.rounds.map((round, i) => {
-                const isUser = !round.agent_id;
-                const agent = isUser ? null : debate.agents.find((a) => a.id === round.agent_id);
-                const idx = isUser ? -1 : agentIndex(debate, round.agent_id);
-                const color = isUser ? USER_COLOR : agentColor(idx);
-                const isPlaying = playingIndex === i;
-                const isLoading = loadingIndex === i;
-                const roundDur = roundDurations.get(i);
-                const startTime = cumulativeTimes[i];
-                const hasError = roundErrors.get(i) === true;
-
-                return (
-                    <div
-                        key={i}
-                        className={`flex items-center gap-2.5 py-[7px] group ${i < debate.rounds.length - 1 ? 'border-b border-border' : ''}`}
-                    >
-                        <span className='font-mono text-[9px] text-text-3 w-4'>
-                            {String(i + 1).padStart(2, '0')}
-                        </span>
-                        <span
-                            className='h-1.5 w-1.5 rounded-full shrink-0'
-                            style={{ background: color }}
-                        />
-                        <span className='flex-1 text-xs text-text-2 group-hover:text-text-1 transition-colors'>
-                            {agent ? agent.name : 'You'} — Round {i + 1}
-                        </span>
-                        <span className='font-mono text-[10px] text-text-3 mr-2'>
-                            {startTime != null ? formatTime(startTime) : '—'}
-                            {roundDur != null && (
-                                <span className='text-text-4 ml-1'>({formatTime(roundDur)})</span>
-                            )}
-                        </span>
-                        <button
-                            type='button'
-                            onClick={() => {
-                                void handlePlay(i);
-                            }}
-                            className='flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border text-text-3 cursor-pointer transition-colors hover:border-accent hover:text-accent disabled:opacity-40 disabled:cursor-not-allowed'
-                            disabled={isLoading}
-                            aria-label={isPlaying ? `Pause round ${i + 1}` : `Play round ${i + 1}`}
-                            title={
-                                hasError
-                                    ? 'Round audio unavailable'
-                                    : isLoading
-                                      ? 'Loading…'
-                                      : isPlaying
-                                        ? `Pause round ${i + 1}`
-                                        : `Play round ${i + 1}`
-                            }
-                        >
-                            {isLoading ? (
-                                <svg
-                                    viewBox='0 0 24 24'
-                                    fill='none'
-                                    stroke='currentColor'
-                                    strokeWidth='2'
-                                    strokeLinecap='round'
-                                    className='w-2.5 h-2.5 animate-spin'
-                                    aria-hidden
-                                >
-                                    <circle cx='12' cy='12' r='9' strokeOpacity='0.25' />
-                                    <path d='M12 3a9 9 0 0 1 9 9' />
-                                </svg>
-                            ) : hasError ? (
-                                <svg
-                                    viewBox='0 0 24 24'
-                                    fill='none'
-                                    stroke='currentColor'
-                                    strokeWidth='2'
-                                    strokeLinecap='round'
-                                    className='w-2.5 h-2.5 text-error'
-                                    aria-hidden
-                                >
-                                    <circle cx='12' cy='12' r='9' />
-                                    <line x1='12' y1='8' x2='12' y2='12' />
-                                    <circle cx='12' cy='16' r='0.75' fill='currentColor' />
-                                </svg>
-                            ) : isPlaying ? (
-                                <IconPauseSmall />
-                            ) : (
-                                <IconPlaySmall />
-                            )}
-                        </button>
-                    </div>
-                );
-            })}
+            {debate.rounds.map((_, i) => (
+                <ChapterRow key={i} debate={debate} roundIndex={i} />
+            ))}
         </div>
     );
 }
@@ -516,6 +401,7 @@ function AgentProfilesCard({ debate }: { debate: Debate }) {
 export function Component() {
     const debate = useLoaderData() as Debate;
     const audioRef = useRef<HTMLAudioElement>(null);
+    const toast = useToast();
 
     const [isPlaying, setIsPlaying] = useState(false);
     const [progress, setProgress] = useState(0);
@@ -543,8 +429,10 @@ export function Component() {
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-        } catch {
-            // silently ignore — audio error state already covers backend failures
+        } catch (error) {
+            toast.error(getErrorMessage(error, 'Failed to download the debate audio.'), {
+                title: 'Download failed',
+            });
         } finally {
             setDownloading(false);
         }

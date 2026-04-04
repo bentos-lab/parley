@@ -13,7 +13,7 @@ import { AgentEditCard } from '@/components/edit/AgentEditCard';
 import { BlockerModal } from '@/components/edit/BlockerModal';
 import { RoundEditor } from '@/components/edit/RoundEditor';
 import { Button } from '@/components/ui/Button';
-import { ApiError } from '@/services/api/http';
+import { ApiError, getErrorMessage } from '@/services/api/http';
 import { getDebate, updateDebate } from '@/services/api/debates';
 import { DebateSchema } from '@/services/api/schemas';
 import type { Agent, Debate, Round } from '@/types';
@@ -117,11 +117,7 @@ export async function action({ request, params }: LoaderFunctionArgs) {
         return redirect(`/debates/${encodeURIComponent(params.debateId)}`);
     } catch (error) {
         if (error instanceof ApiError && error.status === 400) {
-            const msg =
-                typeof error.body === 'object' && error.body && 'error' in error.body
-                    ? String((error.body as { error: string }).error)
-                    : error.message;
-            return { error: msg };
+            return { error: getErrorMessage(error, 'Something went wrong') };
         }
         throw error;
     }

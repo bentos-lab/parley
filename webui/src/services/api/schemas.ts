@@ -17,6 +17,10 @@ export const AgentSchema = RawAgentSchema.transform((a) => ({
 export const RoundSchema = z.object({
     agent_id: z.string(),
     message: z.string(),
+    weakness: z.string().optional(),
+    new_point: z.string().optional(),
+    rebuttal: z.string().optional(),
+    summary: z.string().optional(),
 });
 
 export const RawDebateSchema = z.object({
@@ -58,4 +62,35 @@ export const CreateDebateResponseSchema = z.object({
 export const RoundResponseSchema = z.object({
     agent_id: z.string(),
     content: z.string(),
+    weakness: z.string().optional(),
+    new_point: z.string().optional(),
+    rebuttal: z.string().optional(),
+    summary: z.string().optional(),
+});
+
+// Config schemas matching GET/PUT /api/config
+export const OpenAIConfigSchema = z.object({
+    base_url: z.string(),
+    api_key: z.string(),
+    model: z.string(),
+});
+
+export const LLMConfigSchema = z.object({
+    provider: z.string(),
+    openai: OpenAIConfigSchema,
+});
+
+export const InworldConfigSchema = z.object({
+    api_key: z.string(),
+    model: z.string(),
+});
+
+export const TTSConfigSchema = z.object({
+    provider: z.string(),
+    inworld: InworldConfigSchema,
+});
+
+export const ConfigResponseSchema = z.object({
+    llm: LLMConfigSchema,
+    tts: TTSConfigSchema,
 });

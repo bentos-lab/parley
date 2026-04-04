@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+const FIXTURE_DEBATE_ID = 'ai-existential-risk.2026-01-10-09-00-00';
+
 test.describe('Create Debate Form', () => {
     test('Create Debate -> Navigate to Detail', async ({ page }) => {
         const topic = 'Should robots have rights?';
@@ -9,8 +11,8 @@ test.describe('Create Debate Form', () => {
 
         await page.getByLabel(/topic/i).fill(topic);
 
-        // Select TTS provider by clicking the visible label text (radio input is sr-only)
-        await page.getByText('Inworld (cloud)', { exact: true }).click();
+        // TTS provider defaults from runtime config (or falls back to native)
+        // No need to explicitly select - default is applied automatically
 
         // Expand advanced options to access agent fields
         await page.getByRole('button', { name: /advanced options/i }).click();
@@ -116,5 +118,38 @@ test.describe('Create Debate Form', () => {
         const removeButton = page.locator('button').filter({ hasText: /^−$/ });
         await removeButton.click();
         await expect(page.getByText('Agent 3')).toBeHidden();
+    });
+
+    test('Custom debate name is included in create payload', async ({ page }) => {
+        let capturedPayload: Record<string, unknown> | null = null;
+
+        await page.route('**/api/debates', async (route) => {
+            if (route.request().method() !== 'POST') {
+                await route.continue();
+                return;
+            }
+
+            capturedPayload = route.request().postDataJSON() as Record<string, unknown>;
+
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({
+                    id: FIXTURE_DEBATE_ID,
+                    name: String(capturedPayload?.name ?? ''),
+                }),
+            });
+        });
+
+        await page.goto('/debates/new');
+        await page.getByLabel(/topic/i).fill('Should AI write laws?');
+        await page.getByRole('button', { name: /advanced options/i }).click();
+        await page.getByLabel(/debate name/i).fill('S');
+        await page.getByRole('button', { name: /create debate/i }).click();
+
+        await page.waitForURL(new RegExp(`/debates/${FIXTURE_DEBATE_ID.replace(/\./g, '\\.')}`));
+
+        expect(capturedPayload).not.toBeNull();
+        expect(capturedPayload?.name).toBe('S');
     });
 });
