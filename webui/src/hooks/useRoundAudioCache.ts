@@ -437,6 +437,20 @@ function resetRound(debateId: string, roundIndex: number): void {
     }
 }
 
+/** Seek by a relative amount (positive = forward, negative = backward) */
+function seekBySeconds(seconds: number): void {
+    const audio = getGlobalAudio();
+    const { current, playerStatus } = getQueueState();
+
+    if (!current || playerStatus === 'idle' || playerStatus === 'loading') return;
+
+    const newTime = Math.max(0, Math.min(audio.duration || 0, audio.currentTime + seconds));
+    audio.currentTime = newTime;
+
+    const key = getCacheKey(current.debateId, current.roundIndex);
+    setEntry(key, { currentTime: newTime });
+}
+
 // ---------------------------------------------------------------------------
 // React hook
 // ---------------------------------------------------------------------------
@@ -524,6 +538,10 @@ export function useRoundAudioCache() {
         skipPrevious();
     }, []);
 
+    const seekBy = useCallback((seconds: number) => {
+        seekBySeconds(seconds);
+    }, []);
+
     return {
         getStatus,
         play,
@@ -535,6 +553,7 @@ export function useRoundAudioCache() {
         togglePause,
         next,
         previous,
+        seekBy,
     };
 }
 
