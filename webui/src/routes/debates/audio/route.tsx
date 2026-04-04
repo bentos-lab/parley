@@ -195,6 +195,42 @@ function Waveform({ progress, onSeek }: { progress: number; onSeek: (pct: number
 // Chapters with per-turn audio play buttons (uses shared cache)
 // ---------------------------------------------------------------------------
 
+function IconSkipBack15Small() {
+    return (
+        <svg
+            viewBox='0 0 24 24'
+            fill='none'
+            stroke='currentColor'
+            strokeWidth='2'
+            strokeLinecap='round'
+            strokeLinejoin='round'
+            className='w-2.5 h-2.5'
+            aria-hidden
+        >
+            <path d='M3 12a9 9 0 1 0 .75-3.6' />
+            <polyline points='3 4.5 3 8.5 7 8.5' />
+        </svg>
+    );
+}
+
+function IconSkipForward15Small() {
+    return (
+        <svg
+            viewBox='0 0 24 24'
+            fill='none'
+            stroke='currentColor'
+            strokeWidth='2'
+            strokeLinecap='round'
+            strokeLinejoin='round'
+            className='w-2.5 h-2.5'
+            aria-hidden
+        >
+            <path d='M21 12a9 9 0 1 1-.75-3.6' />
+            <polyline points='21 4.5 21 8.5 17 8.5' />
+        </svg>
+    );
+}
+
 function ChapterRow({ debate, roundIndex }: { debate: Debate; roundIndex: number }) {
     const round = debate.rounds[roundIndex];
     const isUser = !round.agent_id;
@@ -203,11 +239,13 @@ function ChapterRow({ debate, roundIndex }: { debate: Debate; roundIndex: number
     const color = isUser ? USER_COLOR : agentColor(idx);
 
     const audioState = useRoundAudioStatus(debate.id, roundIndex);
-    const { play } = useRoundAudioCache();
+    const { play, togglePause, seekBy } = useRoundAudioCache();
 
     const isPlaying = audioState.status === 'playing';
     const isLoading = audioState.status === 'loading';
     const hasError = audioState.status === 'error';
+    // isActive: round is loaded and ready or currently playing — enables seek buttons
+    const isActive = isPlaying || audioState.status === 'ready';
 
     return (
         <div
@@ -223,59 +261,92 @@ function ChapterRow({ debate, roundIndex }: { debate: Debate; roundIndex: number
             <span className='font-mono text-[10px] text-text-3 mr-2'>
                 {audioState.duration != null ? formatTime(audioState.duration) : '—'}
             </span>
-            <button
-                type='button'
-                onClick={() => {
-                    void play(debate.id, roundIndex);
-                }}
-                className='flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border text-text-3 cursor-pointer transition-colors hover:border-accent hover:text-accent disabled:opacity-40 disabled:cursor-wait'
-                disabled={isLoading}
-                aria-label={
-                    isPlaying ? `Pause round ${roundIndex + 1}` : `Play round ${roundIndex + 1}`
-                }
-                title={
-                    hasError
-                        ? 'Round audio unavailable'
-                        : isLoading
-                          ? 'Loading…'
-                          : isPlaying
-                            ? `Pause round ${roundIndex + 1}`
-                            : `Play round ${roundIndex + 1}`
-                }
-            >
-                {isLoading ? (
-                    <svg
-                        viewBox='0 0 24 24'
-                        fill='none'
-                        stroke='currentColor'
-                        strokeWidth='2'
-                        strokeLinecap='round'
-                        className='w-2.5 h-2.5 animate-spin'
-                        aria-hidden
-                    >
-                        <circle cx='12' cy='12' r='9' strokeOpacity='0.25' />
-                        <path d='M12 3a9 9 0 0 1 9 9' />
-                    </svg>
-                ) : hasError ? (
-                    <svg
-                        viewBox='0 0 24 24'
-                        fill='none'
-                        stroke='currentColor'
-                        strokeWidth='2'
-                        strokeLinecap='round'
-                        className='w-2.5 h-2.5 text-error'
-                        aria-hidden
-                    >
-                        <circle cx='12' cy='12' r='9' />
-                        <line x1='12' y1='8' x2='12' y2='12' />
-                        <circle cx='12' cy='16' r='0.75' fill='currentColor' />
-                    </svg>
-                ) : isPlaying ? (
-                    <IconPauseSmall />
-                ) : (
-                    <IconPlaySmall />
-                )}
-            </button>
+
+            {/* Mini audio controls */}
+            <div className='flex items-center gap-1'>
+                {/* Skip back 15s */}
+                <button
+                    type='button'
+                    onClick={() => seekBy(-15)}
+                    className='flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border text-text-3 cursor-pointer transition-colors hover:border-accent hover:text-accent disabled:opacity-30 disabled:cursor-not-allowed'
+                    disabled={!isActive || isLoading}
+                    aria-label='Skip back 15 seconds'
+                    title='Skip back 15 seconds'
+                >
+                    <IconSkipBack15Small />
+                </button>
+
+                {/* Play/Pause toggle */}
+                <button
+                    type='button'
+                    onClick={() => {
+                        if (isPlaying) {
+                            togglePause();
+                        } else {
+                            void play(debate.id, roundIndex);
+                        }
+                    }}
+                    className='flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border text-text-3 cursor-pointer transition-colors hover:border-accent hover:text-accent disabled:opacity-40 disabled:cursor-wait'
+                    disabled={isLoading}
+                    aria-label={
+                        isPlaying ? `Pause round ${roundIndex + 1}` : `Play round ${roundIndex + 1}`
+                    }
+                    title={
+                        hasError
+                            ? 'Round audio unavailable'
+                            : isLoading
+                              ? 'Loading…'
+                              : isPlaying
+                                ? `Pause round ${roundIndex + 1}`
+                                : `Play round ${roundIndex + 1}`
+                    }
+                >
+                    {isLoading ? (
+                        <svg
+                            viewBox='0 0 24 24'
+                            fill='none'
+                            stroke='currentColor'
+                            strokeWidth='2'
+                            strokeLinecap='round'
+                            className='w-2.5 h-2.5 animate-spin'
+                            aria-hidden
+                        >
+                            <circle cx='12' cy='12' r='9' strokeOpacity='0.25' />
+                            <path d='M12 3a9 9 0 0 1 9 9' />
+                        </svg>
+                    ) : hasError ? (
+                        <svg
+                            viewBox='0 0 24 24'
+                            fill='none'
+                            stroke='currentColor'
+                            strokeWidth='2'
+                            strokeLinecap='round'
+                            className='w-2.5 h-2.5 text-error'
+                            aria-hidden
+                        >
+                            <circle cx='12' cy='12' r='9' />
+                            <line x1='12' y1='8' x2='12' y2='12' />
+                            <circle cx='12' cy='16' r='0.75' fill='currentColor' />
+                        </svg>
+                    ) : isPlaying ? (
+                        <IconPauseSmall />
+                    ) : (
+                        <IconPlaySmall />
+                    )}
+                </button>
+
+                {/* Skip forward 15s */}
+                <button
+                    type='button'
+                    onClick={() => seekBy(15)}
+                    className='flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border text-text-3 cursor-pointer transition-colors hover:border-accent hover:text-accent disabled:opacity-30 disabled:cursor-not-allowed'
+                    disabled={!isActive || isLoading}
+                    aria-label='Skip forward 15 seconds'
+                    title='Skip forward 15 seconds'
+                >
+                    <IconSkipForward15Small />
+                </button>
+            </div>
         </div>
     );
 }
