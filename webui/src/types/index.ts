@@ -12,3 +12,13 @@ export type {
     ConfigResponse,
     ConfigUpdatePayload,
 } from './debate';
+
+export type {
+    WhatsAppConnectState,
+    WhatsAppErrorEvent,
+    WhatsAppQREvent,
+    WhatsAppScannedEvent,
+    WhatsAppSSEEvent,
+    WhatsAppStatusResponse,
+} from './whatsapp';
+export { isErrorEvent, isQREvent, isScannedEvent } from './whatsapp';

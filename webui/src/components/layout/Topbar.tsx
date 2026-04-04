@@ -17,6 +17,8 @@ export function Topbar({ debate }: TopbarProps) {
     const isCreateView = location.pathname === '/debates/new';
     const isEditView = location.pathname.endsWith('/edit');
     const isAudioView = location.pathname.endsWith('/audio');
+    const isSettingsView = location.pathname === '/settings';
+    const isWhatsAppView = location.pathname === '/integrations/whatsapp';
     const detailPath = debate ? `/debates/${encodeURIComponent(debate.id)}` : null;
 
     let title = 'parley';
@@ -24,6 +26,12 @@ export function Topbar({ debate }: TopbarProps) {
     if (isCreateView) {
         title = 'New debate';
         topic = 'POST /api/debates';
+    } else if (isSettingsView) {
+        title = 'Settings';
+        topic = 'Runtime configuration';
+    } else if (isWhatsAppView) {
+        title = 'WhatsApp';
+        topic = 'Connection and QR pairing';
     } else if (debate) {
         title = debate.name;
         topic = debate.topic;
@@ -161,6 +169,20 @@ export function Topbar({ debate }: TopbarProps) {
                         }
                     >
                         Settings
+                    </NavLink>
+                    <NavLink
+                        to='/integrations/whatsapp'
+                        onClick={() => setMobileNavOpen(false)}
+                        className={({ isActive }) =>
+                            [
+                                'flex items-center gap-2 rounded px-3 py-2 text-xs transition-colors',
+                                isActive
+                                    ? 'bg-bg-elevated text-text-1'
+                                    : 'text-text-2 hover:bg-bg-hover hover:text-text-1',
+                            ].join(' ')
+                        }
+                    >
+                        WhatsApp
                     </NavLink>
                     {isDebateView && debate && (
                         <>
