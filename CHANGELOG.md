@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.5] - 2026-04-04
+### Added
+- Introduced a WhatsApp integration with REST endpoints for status, pairing, and session cleanup, including an SSE-based QR pairing stream and matching HTTP API documentation.
+- Expanded the Web UI with settings and WhatsApp integration screens, plus provider catalog metadata to drive configuration UX.
+- Added audio seek support and a mini player experience for debate rounds, including caching and playback helpers.
+- Included peer configuration files in the repository.
+
+### Changed
+- Refined the CLI and REST WhatsApp connect flow to align with the new pairing endpoints and session management.
+- Refreshed core Web UI layouts and routes across debates, audio, and navigation surfaces.
+
+### Fixed
+- Run the WhatsApp listener asynchronously to keep REST handlers responsive.
+- Correct the return value order in the WhatsApp connect routine.
+- Remove redundant error logging during WhatsApp listener startup.
+
 ## [0.1.4] - 2026-04-04
 ### Changed
 - Prevent the `parley update self` command from re-downloading the current release by printing the current and latest versions and returning early when they match.
