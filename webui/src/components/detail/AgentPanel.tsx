@@ -1,5 +1,46 @@
-import { useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import type { Debate } from '@/types';
+
+// Simple volume icons as inline SVGs
+function VolumeIcon({ muted, className }: { muted?: boolean; className?: string }) {
+    if (muted) {
+        return (
+            <svg
+                className={className}
+                fill='none'
+                viewBox='0 0 24 24'
+                stroke='currentColor'
+                strokeWidth={2}
+            >
+                <path
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                    d='M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z'
+                />
+                <path
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                    d='M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2'
+                />
+            </svg>
+        );
+    }
+    return (
+        <svg
+            className={className}
+            fill='none'
+            viewBox='0 0 24 24'
+            stroke='currentColor'
+            strokeWidth={2}
+        >
+            <path
+                strokeLinecap='round'
+                strokeLinejoin='round'
+                d='M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z'
+            />
+        </svg>
+    );
+}
 
 const agentColors = [
     { color: 'var(--c-a)', bg: 'var(--c-a-bg)', border: 'var(--c-a-border)' },
@@ -12,30 +53,43 @@ export interface AgentPanelProps {
     debate: Debate;
     streamingCount?: number;
     isStreaming?: boolean;
+    isStopping?: boolean;
     sseCompleted?: boolean;
     turnCount?: number;
     onTurnCountChange?: (n: number) => void;
+    playAudioImmediately?: boolean;
+    onPlayAudioChange?: (enabled: boolean) => void;
     onStart?: () => void;
     onStop?: () => void;
     onStartNext?: () => void;
     highlightedAgentId?: string | null;
     onAgentHighlight?: (agentId: string | null) => void;
+    mobileOpen?: boolean;
+    onMobileToggle?: () => void;
+    onMobileClose?: () => void;
 }
 
 export function AgentPanel({
     debate,
     streamingCount = 0,
     isStreaming = false,
+    isStopping = false,
     sseCompleted = false,
     turnCount = 6,
     onTurnCountChange,
+    playAudioImmediately = false,
+    onPlayAudioChange,
     onStart,
     onStop,
     onStartNext,
     highlightedAgentId,
     onAgentHighlight,
+    mobileOpen = false,
+    onMobileToggle,
+    onMobileClose,
 }: AgentPanelProps) {
     const [isAgentsExpanded, setIsAgentsExpanded] = useState(true);
+    const mobilePanelId = useId();
     const totalTurns = debate.rounds.length + streamingCount;
 
     const agentStats = debate.agents.map((agent, index) => {
@@ -45,19 +99,41 @@ export function AgentPanel({
         return { agent, turns, share, ...palette };
     });
 
-    return (
-        <aside
-            data-testid='agent-panel'
-            className='hidden lg:flex w-[260px] min-w-[260px] flex-col overflow-y-auto bg-bg-panel scrollbar-thin'
-        >
+    useEffect(() => {
+        if (!mobileOpen) {
+            return undefined;
+        }
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                onMobileClose?.();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [mobileOpen, onMobileClose]);
+
+    const handleStartClick = () => {
+        onStart?.();
+        onMobileClose?.();
+    };
+
+    const handleStartNextClick = () => {
+        onStartNext?.();
+        onMobileClose?.();
+    };
+
+    const panelContent = (
+        <>
             {/* Agents section */}
             <div className='border-b border-border px-4 py-3.5'>
                 <button
                     type='button'
                     onClick={() => setIsAgentsExpanded(!isAgentsExpanded)}
-                    className='flex w-full items-center justify-between mb-2.5'
+                    className='mb-2.5 flex w-full cursor-pointer items-center justify-between'
                 >
-                    <span className='text-[9px] font-semibold uppercase tracking-[0.08em] text-text-3'>
+                    <span className='text-[11px] font-semibold uppercase tracking-[0.08em] text-text-3'>
                         Agents · {debate.agents.length}
                     </span>
                     <svg
@@ -73,10 +149,9 @@ export function AgentPanel({
                     </svg>
                 </button>
 
-                {/* Collapsible content */}
                 <div
-                    className={`space-y-2 transition-all duration-200 ease-in-out overflow-hidden ${
-                        isAgentsExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
+                    className={`space-y-2 overflow-hidden transition-all duration-200 ease-in-out ${
+                        isAgentsExpanded ? 'max-h-125 opacity-100' : 'max-h-0 opacity-0'
                     }`}
                 >
                     {agentStats.map(({ agent, turns, color }) => (
@@ -88,7 +163,7 @@ export function AgentPanel({
                                     highlightedAgentId === agent.id ? null : agent.id,
                                 );
                             }}
-                            className={`rounded-lg border p-3 cursor-pointer transition-all ${
+                            className={`cursor-pointer rounded-lg border p-3 transition-all ${
                                 highlightedAgentId === agent.id
                                     ? 'border-2'
                                     : 'bg-bg-surface hover:border-border-hi'
@@ -98,40 +173,24 @@ export function AgentPanel({
                                     highlightedAgentId === agent.id ? color : 'var(--border)',
                             }}
                         >
-                            <div className='flex items-center gap-[7px] mb-1.5'>
+                            <div className='mb-1.5 flex items-center gap-1.75'>
                                 <span
-                                    className='h-[7px] w-[7px] rounded-full shrink-0'
+                                    className='h-2 w-2 shrink-0 rounded-full'
                                     style={{ backgroundColor: color }}
                                 />
-                                <span className='flex-1 text-xs font-semibold text-text-1 truncate'>
+                                <span className='flex-1 truncate text-sm font-semibold text-text-1'>
                                     {agent.name}
                                 </span>
-                                <span className='font-mono text-[9px] text-text-3 bg-bg-elevated px-[5px] py-px rounded-[3px]'>
+                                <span className='rounded-[3px] bg-bg-elevated px-1.25 py-px font-mono text-[11px] text-text-3'>
                                     {turns}
                                 </span>
                             </div>
 
                             {agent.stance && (
-                                <p className='text-[11px] text-text-2 leading-[1.4]'>
+                                <p className='text-[13px] leading-[1.4] text-text-2'>
                                     {agent.stance}
                                 </p>
                             )}
-
-                            {/* <div
-                                className='mt-2 h-[3px] rounded-full overflow-hidden'
-                                style={{ backgroundColor: 'var(--border)' }}
-                            >
-                                <div
-                                    className='h-full rounded-full transition-[width] duration-500'
-                                    style={{
-                                        width: `${Math.round(share * 100)}%`,
-                                        backgroundColor: color,
-                                    }}
-                                />
-                            </div>
-                            <p className='mt-1 text-[10px] text-text-3'>
-                                {Math.round(share * 100)}% share
-                            </p> */}
                         </div>
                     ))}
                 </div>
@@ -139,35 +198,32 @@ export function AgentPanel({
 
             {/* Session section */}
             <div className='border-b border-border px-4 py-3.5'>
-                <div className='mb-2.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-text-3'>
+                <div className='mb-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-3'>
                     Session
                 </div>
 
-                <div className='space-y-[7px]'>
-                    <div className='flex justify-between items-center'>
-                        <span className='text-[11px] text-text-3'>Total rounds</span>
-                        <span className='font-mono text-[10px] text-text-2'>{totalTurns}</span>
+                <div className='space-y-1.75'>
+                    <div className='flex items-center justify-between'>
+                        <span className='text-[13px] text-text-3'>Total rounds</span>
+                        <span className='font-mono text-xs text-text-2'>{totalTurns}</span>
                     </div>
-                    <div className='flex justify-between items-center'>
-                        <span className='text-[11px] text-text-3'>TTS provider</span>
-                        <span className='font-mono text-[10px] text-accent'>
-                            {debate.ttsProvider}
-                        </span>
+                    <div className='flex items-center justify-between'>
+                        <span className='text-[13px] text-text-3'>TTS provider</span>
+                        <span className='font-mono text-xs text-accent'>{debate.ttsProvider}</span>
                     </div>
                 </div>
             </div>
 
             {/* Controls section */}
             <div className='px-4 py-3.5'>
-                <div className='mb-2.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-text-3'>
+                <div className='mb-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-3'>
                     Controls
                 </div>
 
-                {/* Turn count slider */}
                 <div className='mb-3'>
                     <div className='mb-1.5 flex items-center justify-between'>
-                        <span className='text-[11px] text-text-3'>Rounds to generate</span>
-                        <span className='font-mono text-[10px] text-text-2'>{turnCount}</span>
+                        <span className='text-[13px] text-text-3'>Rounds to generate</span>
+                        <span className='font-mono text-xs text-text-2'>{turnCount}</span>
                     </div>
                     <input
                         type='range'
@@ -175,49 +231,201 @@ export function AgentPanel({
                         max={20}
                         value={turnCount}
                         onChange={(e) => onTurnCountChange?.(Number(e.target.value))}
-                        disabled={isStreaming}
+                        disabled={isStreaming || isStopping}
                         className='w-full accent-accent disabled:opacity-40'
                     />
-                    <div className='flex justify-between text-[9px] text-text-3 mt-0.5'>
+                    <div className='mt-0.5 flex justify-between text-[11px] text-text-3'>
                         <span>1</span>
                         <span>20</span>
                     </div>
                 </div>
 
-                {/* Action buttons */}
-                {!isStreaming && !sseCompleted && (
+                <div className='mb-3'>
                     <button
                         type='button'
-                        onClick={onStart}
-                        className='w-full rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white hover:opacity-90'
+                        onClick={() => onPlayAudioChange?.(!playAudioImmediately)}
+                        disabled={isStreaming || isStopping}
+                        title='Next rounds will play audio automatically'
+                        aria-label={`Auto-play audio: ${playAudioImmediately ? 'enabled' : 'disabled'}. Next rounds will play audio automatically.`}
+                        className={`flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm transition-colors ${
+                            playAudioImmediately
+                                ? 'border-accent bg-accent/10 text-accent'
+                                : 'border-border bg-bg-surface text-text-2 hover:border-border-hi'
+                        } disabled:cursor-not-allowed disabled:opacity-40`}
+                    >
+                        <span className='flex items-center gap-2'>
+                            <VolumeIcon muted={!playAudioImmediately} className='h-4 w-4' />
+                            <span>Auto-play audio</span>
+                        </span>
+                        <span
+                            className={`h-4 w-7 rounded-full transition-colors ${
+                                playAudioImmediately ? 'bg-accent' : 'bg-border'
+                            }`}
+                        >
+                            <span
+                                className={`block h-3 w-3 translate-y-0.5 rounded-full bg-white transition-transform ${
+                                    playAudioImmediately ? 'translate-x-3.5' : 'translate-x-0.5'
+                                }`}
+                            />
+                        </span>
+                    </button>
+                </div>
+
+                {!isStreaming && !sseCompleted && !isStopping && (
+                    <button
+                        type='button'
+                        onClick={handleStartClick}
+                        className='w-full rounded-md bg-accent px-3 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 cursor-pointer'
                     >
                         Start
                     </button>
                 )}
-                {isStreaming && (
+                {(isStreaming || isStopping) && (
                     <button
                         type='button'
                         onClick={onStop}
-                        className='w-full rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:opacity-90'
+                        disabled={isStopping}
+                        className={`flex w-full items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-white transition-all ${
+                            isStopping
+                                ? 'cursor-not-allowed bg-red-600/60'
+                                : 'cursor-pointer bg-red-600 hover:opacity-90'
+                        }`}
                     >
-                        Stop
+                        {isStopping && (
+                            <svg className='h-4 w-4 animate-spin' fill='none' viewBox='0 0 24 24'>
+                                <circle
+                                    className='opacity-25'
+                                    cx='12'
+                                    cy='12'
+                                    r='10'
+                                    stroke='currentColor'
+                                    strokeWidth='4'
+                                />
+                                <path
+                                    className='opacity-75'
+                                    fill='currentColor'
+                                    d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'
+                                />
+                            </svg>
+                        )}
+                        {isStopping ? 'Stopping…' : 'Stop'}
                     </button>
                 )}
-                {sseCompleted && (
+                {sseCompleted && !isStopping && (
                     <div className='space-y-2'>
-                        <p className='text-[10px] text-text-3 text-center'>
+                        <p className='text-center text-xs text-text-3'>
                             Session complete — {totalTurns} turns
                         </p>
                         <button
                             type='button'
-                            onClick={onStartNext}
-                            className='w-full rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-white hover:opacity-90'
+                            onClick={handleStartNextClick}
+                            className='w-full rounded-md bg-accent px-3 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 cursor-pointer'
                         >
                             Start Next
                         </button>
                     </div>
                 )}
             </div>
-        </aside>
+        </>
+    );
+
+    return (
+        <>
+            <button
+                type='button'
+                aria-label={mobileOpen ? 'Close session controls' : 'Open session controls'}
+                aria-expanded={mobileOpen}
+                aria-controls={mobilePanelId}
+                onClick={onMobileToggle}
+                className='fixed bottom-4 right-4 z-30 flex items-center gap-2 rounded-full border border-accent/40 bg-bg-panel/95 px-3 py-2 text-sm text-text-1 shadow-[0_10px_30px_rgba(0,0,0,0.32)] backdrop-blur lg:hidden cursor-pointer transition-colors hover:border-accent hover:bg-bg-elevated'
+            >
+                <span className='flex h-8 w-8 items-center justify-center rounded-full bg-accent/12 text-accent'>
+                    <svg
+                        aria-hidden='true'
+                        className='h-4 w-4'
+                        fill='none'
+                        viewBox='0 0 24 24'
+                        stroke='currentColor'
+                        strokeWidth={2}
+                    >
+                        <path
+                            strokeLinecap='round'
+                            strokeLinejoin='round'
+                            d='M4 7h16M7 12h10M10 17h4'
+                        />
+                    </svg>
+                </span>
+                <span className='flex flex-col items-start leading-none'>
+                    <span className='text-[10px] uppercase tracking-[0.12em] text-text-3'>
+                        Session
+                    </span>
+                    <span className='text-sm font-medium text-text-1'>Controls</span>
+                </span>
+            </button>
+
+            <div
+                className={`fixed inset-0 z-40 lg:hidden ${mobileOpen ? '' : 'pointer-events-none'}`}
+                aria-hidden={!mobileOpen}
+            >
+                <button
+                    type='button'
+                    aria-label='Close session controls'
+                    onClick={onMobileClose}
+                    className={`absolute inset-0 bg-black/45 transition-opacity duration-200 ${
+                        mobileOpen ? 'opacity-100' : 'opacity-0'
+                    }`}
+                />
+
+                <aside
+                    id={mobilePanelId}
+                    role='dialog'
+                    aria-modal='true'
+                    aria-label='Session controls'
+                    data-testid='agent-panel-mobile'
+                    className={`absolute inset-y-0 right-0 flex w-[min(88vw,320px)] flex-col overflow-y-auto border-l border-border bg-bg-panel shadow-[0_18px_50px_rgba(0,0,0,0.45)] transition-transform duration-200 ease-out ${
+                        mobileOpen ? 'translate-x-0' : 'translate-x-full'
+                    }`}
+                >
+                    <div className='sticky top-0 z-10 flex items-center justify-between border-b border-border bg-bg-panel/95 px-4 py-3 backdrop-blur'>
+                        <div>
+                            <p className='text-[10px] uppercase tracking-[0.12em] text-text-3'>
+                                Debate controls
+                            </p>
+                            <p className='text-sm font-medium text-text-1'>Configure next rounds</p>
+                        </div>
+                        <button
+                            type='button'
+                            aria-label='Close session controls'
+                            onClick={onMobileClose}
+                            className='flex h-8 w-8 items-center justify-center rounded-md text-text-2 transition-colors hover:bg-bg-hover hover:text-text-1 cursor-pointer'
+                        >
+                            <svg
+                                aria-hidden='true'
+                                className='h-4 w-4'
+                                fill='none'
+                                viewBox='0 0 24 24'
+                                stroke='currentColor'
+                                strokeWidth={2}
+                            >
+                                <path
+                                    strokeLinecap='round'
+                                    strokeLinejoin='round'
+                                    d='M6 6l12 12M18 6L6 18'
+                                />
+                            </svg>
+                        </button>
+                    </div>
+
+                    {panelContent}
+                </aside>
+            </div>
+
+            <aside
+                data-testid='agent-panel'
+                className='hidden w-65 min-w-65 flex-col overflow-y-auto bg-bg-panel scrollbar-thin lg:flex'
+            >
+                {panelContent}
+            </aside>
+        </>
     );
 }

@@ -10,6 +10,16 @@ export interface UseAutoScrollResult {
     resumeNow: () => void;
 }
 
+const BOTTOM_THRESHOLD_PX = 24;
+
+function isNearBottom(element: HTMLDivElement | null): boolean {
+    if (!element) {
+        return true;
+    }
+
+    return element.scrollHeight - element.scrollTop - element.clientHeight <= BOTTOM_THRESHOLD_PX;
+}
+
 export function useAutoScroll({
     containerRef,
     trigger,
@@ -45,23 +55,42 @@ export function useAutoScroll({
             return;
         }
 
+        function syncPausedState() {
+            const nextPaused = !isNearBottom(element);
+            pausedRef.current = nextPaused;
+            setPausedState(nextPaused);
+
+            if (!nextPaused && resumeTimer.current) {
+                clearTimeout(resumeTimer.current);
+                resumeTimer.current = null;
+            }
+        }
+
+        function handleScroll() {
+            syncPausedState();
+        }
+
         function handleWheel(event: WheelEvent) {
-            // Only pause when scrolling up (user intentionally looking at older messages)
             if (event.deltaY < 0) {
                 pausedRef.current = true;
                 setPausedState(true);
 
-                // Clear any existing timer - we stay paused until user clicks "Scroll to bottom"
                 if (resumeTimer.current) {
                     clearTimeout(resumeTimer.current);
                     resumeTimer.current = null;
                 }
+                return;
             }
+
+            requestAnimationFrame(syncPausedState);
         }
 
+        syncPausedState();
+        element.addEventListener('scroll', handleScroll, { passive: true });
         element.addEventListener('wheel', handleWheel, { passive: true });
 
         return () => {
+            element.removeEventListener('scroll', handleScroll);
             element.removeEventListener('wheel', handleWheel);
 
             if (resumeTimer.current) {

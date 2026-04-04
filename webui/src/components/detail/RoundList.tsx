@@ -128,6 +128,7 @@ export function RoundList({
                             highlightedAgentId={highlightedAgentId}
                             alignment={alignments[index]}
                             isRecent={isRecent}
+                            debateId={debate.id}
                         />
                     );
                 })}
@@ -148,12 +149,13 @@ export function RoundList({
                             highlightedAgentId={highlightedAgentId}
                             alignment={alignments[globalIndex]}
                             isRecent
+                            debateId={debate.id}
                         />
                     );
                 })}
 
                 {/* "Agent is thinking" skeleton between rounds */}
-                {isThinking ? (
+                {isThinking && (
                     <RoundBubble
                         round={{ agent_id: '', message: '' }}
                         agent={THINKING_AGENT}
@@ -168,7 +170,7 @@ export function RoundList({
                                 : 'left'
                         }
                     />
-                ) : null}
+                )}
             </div>
 
             {autoScrollPaused ? (

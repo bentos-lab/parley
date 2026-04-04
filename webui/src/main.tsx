@@ -1,4 +1,3 @@
-import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import '@/styles/globals.css';
 import { AppProviders } from '@/app/providers/AppProviders';
@@ -9,8 +8,4 @@ if (!root) {
     throw new Error('Root element not found');
 }
 
-createRoot(root).render(
-    <StrictMode>
-        <AppProviders />
-    </StrictMode>,
-);
+createRoot(root).render(<AppProviders />);

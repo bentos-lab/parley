@@ -148,6 +148,20 @@ export function Topbar({ debate }: TopbarProps) {
                     >
                         New debate
                     </NavLink>
+                    <NavLink
+                        to='/settings'
+                        onClick={() => setMobileNavOpen(false)}
+                        className={({ isActive }) =>
+                            [
+                                'flex items-center gap-2 rounded px-3 py-2 text-xs transition-colors',
+                                isActive
+                                    ? 'bg-bg-elevated text-text-1'
+                                    : 'text-text-2 hover:bg-bg-hover hover:text-text-1',
+                            ].join(' ')
+                        }
+                    >
+                        Settings
+                    </NavLink>
                     {isDebateView && debate && (
                         <>
                             {(isEditView || isAudioView) && detailPath ? (

@@ -17,6 +17,7 @@ export interface CreateDebatePayload {
     name?: string;
     tts_provider?: string;
     agents?: Array<{ name?: string; stance?: string }>;
+    num_agents?: number;
 }
 
 export function createDebate(payload: CreateDebatePayload): Promise<CreateDebateResponse> {

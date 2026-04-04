@@ -1,82 +1,23 @@
 import { useState } from 'react';
 import { NavLink, useLocation, useNavigate, useRevalidator } from 'react-router-dom';
+import { DeleteConfirmModal } from '../ui/DeleteConfirmModal';
+import { useToast } from '../ui/ToastProvider';
 import { deleteDebate } from '@/services/api/debates';
+import { getErrorMessage } from '@/services/api/http';
 import type { DebateSummary } from '@/types';
 
 export interface SidebarProps {
     debates: DebateSummary[];
+    sidebarError?: string | null;
+    collapsed?: boolean;
+    onToggle?: () => void;
 }
 
-function DeleteConfirmModal({
-    debate,
-    onConfirm,
-    onCancel,
-    deleting,
-}: {
-    debate: DebateSummary;
-    onConfirm: () => void;
-    onCancel: () => void;
-    deleting: boolean;
-}) {
-    return (
-        /* Backdrop */
-        <div
-            className='fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-[2px]'
-            onClick={onCancel}
-        >
-            <div
-                className='mx-4 w-full max-w-sm rounded-xl border border-border bg-bg-panel p-5 shadow-xl'
-                onClick={(e) => e.stopPropagation()}
-            >
-                {/* Icon */}
-                <div className='mb-3 flex h-9 w-9 items-center justify-center rounded-full bg-red-500/10'>
-                    <svg width='16' height='16' viewBox='0 0 16 16' fill='none' aria-hidden='true'>
-                        <path
-                            d='M2 4h12M5 4V2.5A.5.5 0 0 1 5.5 2h5a.5.5 0 0 1 .5.5V4M6 7v4M10 7v4M3 4l1 9.5A.5.5 0 0 0 4.5 14h7a.5.5 0 0 0 .5-.5L13 4'
-                            stroke='#ef4444'
-                            strokeWidth='1.2'
-                            strokeLinecap='round'
-                            strokeLinejoin='round'
-                        />
-                    </svg>
-                </div>
-
-                <h2 className='mb-1 text-sm font-semibold text-text-1'>Delete debate?</h2>
-                <p className='mb-4 text-[12px] text-text-3 leading-[1.6]'>
-                    <span className='font-medium text-text-2'>{debate.name}</span> will be
-                    permanently deleted from disk. This cannot be undone.
-                </p>
-
-                <div className='flex items-center justify-end gap-2'>
-                    <button
-                        type='button'
-                        onClick={onCancel}
-                        disabled={deleting}
-                        className='rounded-md border border-border px-3.5 py-1.5 text-xs font-medium text-text-2 transition-colors hover:bg-bg-hover disabled:opacity-40 cursor-pointer'
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        type='button'
-                        onClick={onConfirm}
-                        disabled={deleting}
-                        className='flex items-center gap-1.5 rounded-md bg-red-600 px-3.5 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-60 cursor-pointer'
-                    >
-                        {deleting && (
-                            <span className='h-3 w-3 animate-spin rounded-full border border-white/40 border-t-white' />
-                        )}
-                        Delete
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-export function Sidebar({ debates }: SidebarProps) {
+export function Sidebar({ debates, sidebarError, collapsed = false, onToggle }: SidebarProps) {
     const location = useLocation();
     const navigate = useNavigate();
     const revalidator = useRevalidator();
+    const toast = useToast();
 
     const activeDebateId = location.pathname.match(/^\/debates\/([^/]+)/)?.[1];
 
@@ -93,37 +34,82 @@ export function Sidebar({ debates }: SidebarProps) {
                 navigate('/debates');
             }
             revalidator.revalidate();
-        } catch {
-            // keep modal open on error — user can try again or cancel
+            setPendingDelete(null);
+        } catch (error) {
+            toast.error(getErrorMessage(error, 'Failed to delete this debate.'), {
+                title: 'Delete failed',
+            });
         } finally {
             setDeleting(false);
-            setPendingDelete(null);
         }
     }
 
     return (
         <>
-            <aside className='hidden md:flex h-full w-57 shrink-0 flex-col border-r border-border bg-bg-panel'>
-                {/* Logo */}
-                <div className='flex h-14 items-center gap-2.5 border-b border-border px-4'>
+            <aside
+                className={`hidden md:flex h-full shrink-0 flex-col border-r border-border bg-bg-panel transition-[width] duration-200 ease-out ${
+                    collapsed ? 'w-14' : 'w-57'
+                }`}
+            >
+                {/* Logo + collapse toggle */}
+                <div
+                    className={`flex h-14 items-center border-b border-border ${
+                        collapsed ? 'justify-center px-2' : 'gap-2.5 px-4'
+                    }`}
+                >
                     <img src='/logo.png' alt='Parley' className='h-7 w-7 rounded-md object-cover' />
-                    <span className='font-display text-[16px] text-text-1 tracking-[0.01em]'>
-                        parley
-                    </span>
-                    <span className='ml-auto font-mono text-[9px] text-text-3'>v0.1</span>
+                    {!collapsed && (
+                        <>
+                            <span className='font-display text-[16px] text-text-1 tracking-[0.01em]'>
+                                parley
+                            </span>
+                            <span className='font-mono text-[9px] text-text-3'>v0.1</span>
+                        </>
+                    )}
+                    {/* Collapse toggle button */}
+                    <button
+                        type='button'
+                        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                        title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                        onClick={onToggle}
+                        className={`flex h-7 w-7 items-center justify-center rounded-md text-text-3 transition-colors hover:bg-bg-hover hover:text-text-1 cursor-pointer ${
+                            collapsed ? '' : 'ml-auto'
+                        }`}
+                    >
+                        <svg
+                            className={`h-3.5 w-3.5 transition-transform duration-200 ${collapsed ? 'rotate-180' : ''}`}
+                            viewBox='0 0 16 16'
+                            fill='none'
+                            aria-hidden='true'
+                        >
+                            <path
+                                d='M10 12L6 8l4-4'
+                                stroke='currentColor'
+                                strokeWidth='1.5'
+                                strokeLinecap='round'
+                                strokeLinejoin='round'
+                            />
+                        </svg>
+                    </button>
                 </div>
 
                 {/* Workspace nav */}
-                <div className='px-4 pt-3.5 pb-1.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-text-3'>
-                    Workspace
-                </div>
-                <nav className='px-1.5'>
+                {!collapsed && (
+                    <div className='px-4 pt-3.5 pb-1.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-text-3'>
+                        Workspace
+                    </div>
+                )}
+                <nav className={collapsed ? 'px-1 pt-2' : 'px-1.5'}>
                     <NavLink
                         end
                         to='/debates'
+                        title={collapsed ? 'Home' : undefined}
                         className={({ isActive }) =>
                             [
-                                'flex items-center gap-2 rounded-[5px] px-3.5 py-[7px] mx-0 text-xs transition-colors cursor-pointer',
+                                'flex items-center rounded-[5px] transition-colors cursor-pointer',
+                                collapsed
+                                    ? 'justify-center w-10 h-10 mx-auto my-1'
+                                    : 'gap-2 px-3.5 py-[7px] mx-0 text-xs',
                                 isActive && !activeDebateId
                                     ? 'bg-bg-elevated text-text-1'
                                     : 'text-text-2 hover:bg-bg-hover hover:text-text-1',
@@ -131,7 +117,7 @@ export function Sidebar({ debates }: SidebarProps) {
                         }
                     >
                         <svg
-                            className='w-3.5 h-3.5 opacity-60 shrink-0'
+                            className={`shrink-0 ${collapsed ? 'w-4.5 h-4.5' : 'w-3.5 h-3.5 opacity-60'}`}
                             viewBox='0 0 16 16'
                             fill='none'
                             aria-hidden='true'
@@ -143,13 +129,17 @@ export function Sidebar({ debates }: SidebarProps) {
                                 strokeLinejoin='round'
                             />
                         </svg>
-                        Home
+                        {!collapsed && 'Home'}
                     </NavLink>
                     <NavLink
                         to='/debates/new'
+                        title={collapsed ? 'New debate' : undefined}
                         className={({ isActive }) =>
                             [
-                                'flex items-center gap-2 rounded-[5px] px-3.5 py-[7px] mx-0 text-xs transition-colors cursor-pointer',
+                                'flex items-center rounded-[5px] transition-colors cursor-pointer',
+                                collapsed
+                                    ? 'justify-center w-10 h-10 mx-auto my-1'
+                                    : 'gap-2 px-3.5 py-[7px] mx-0 text-xs',
                                 isActive
                                     ? 'bg-bg-elevated text-text-1'
                                     : 'text-text-2 hover:bg-bg-hover hover:text-text-1',
@@ -157,7 +147,7 @@ export function Sidebar({ debates }: SidebarProps) {
                         }
                     >
                         <svg
-                            className='w-3.5 h-3.5 opacity-60 shrink-0'
+                            className={`shrink-0 ${collapsed ? 'w-4.5 h-4.5' : 'w-3.5 h-3.5 opacity-60'}`}
                             viewBox='0 0 16 16'
                             fill='none'
                             aria-hidden='true'
@@ -170,76 +160,135 @@ export function Sidebar({ debates }: SidebarProps) {
                                 strokeLinecap='round'
                             />
                         </svg>
-                        New debate
+                        {!collapsed && 'New debate'}
+                    </NavLink>
+                    <NavLink
+                        to='/settings'
+                        title={collapsed ? 'Settings' : undefined}
+                        className={({ isActive }) =>
+                            [
+                                'flex items-center rounded-[5px] transition-colors cursor-pointer',
+                                collapsed
+                                    ? 'justify-center w-10 h-10 mx-auto my-1'
+                                    : 'gap-2 px-3.5 py-[7px] mx-0 text-xs',
+                                isActive
+                                    ? 'bg-bg-elevated text-text-1'
+                                    : 'text-text-2 hover:bg-bg-hover hover:text-text-1',
+                            ].join(' ')
+                        }
+                    >
+                        <svg
+                            className={`shrink-0 ${collapsed ? 'w-4.5 h-4.5' : 'w-3.5 h-3.5 opacity-60'}`}
+                            viewBox='0 0 16 16'
+                            fill='none'
+                            aria-hidden='true'
+                        >
+                            <circle cx='8' cy='8' r='2' stroke='currentColor' strokeWidth='1.2' />
+                            <path
+                                d='M8 1v2M8 13v2M1 8h2M13 8h2M2.93 2.93l1.41 1.41M11.66 11.66l1.41 1.41M2.93 13.07l1.41-1.41M11.66 4.34l1.41-1.41'
+                                stroke='currentColor'
+                                strokeWidth='1.2'
+                                strokeLinecap='round'
+                            />
+                        </svg>
+                        {!collapsed && 'Settings'}
                     </NavLink>
                 </nav>
 
-                {/* Saved debates */}
-                <div className='px-4 pt-3.5 pb-1.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-text-3'>
-                    Saved debates
-                </div>
-                <div className='flex-1 overflow-y-auto px-1.5 pb-2 scrollbar-thin'>
-                    {debates.map((debate) => {
-                        const isActive = activeDebateId === encodeURIComponent(debate.id);
-                        return (
-                            <div key={debate.id} className='group relative my-px'>
-                                <button
-                                    type='button'
-                                    onClick={() =>
-                                        navigate(`/debates/${encodeURIComponent(debate.id)}`)
-                                    }
-                                    className={[
-                                        'w-full text-left rounded-[5px] px-3.5 py-2 pr-8 cursor-pointer transition-colors border',
-                                        isActive
-                                            ? 'bg-bg-elevated border-border-mid'
-                                            : 'border-transparent hover:bg-bg-hover',
-                                    ].join(' ')}
-                                >
-                                    <div className='text-xs text-text-1 truncate'>
-                                        {debate.name}
-                                    </div>
-                                    <div className='text-[10px] text-text-3 truncate'>
-                                        {debate.topic}
-                                    </div>
-                                </button>
+                {/* Saved debates — hidden when collapsed */}
+                {!collapsed && (
+                    <>
+                        <div className='px-4 pt-3.5 pb-1.5 text-[9px] font-semibold uppercase tracking-[0.1em] text-text-3'>
+                            Saved debates
+                        </div>
+                        <div className='flex-1 overflow-y-auto px-1.5 pb-2 scrollbar-thin'>
+                            {sidebarError ? (
+                                <div className='mx-2 rounded-lg border border-error/25 bg-error/5 px-3 py-2.5'>
+                                    <p className='text-[10px] font-medium uppercase tracking-wider text-error'>
+                                        Offline
+                                    </p>
+                                    <p className='mt-1 text-[11px] leading-4 text-text-3'>
+                                        {sidebarError}
+                                    </p>
+                                </div>
+                            ) : debates.length === 0 ? (
+                                <p className='px-3.5 py-2 text-xs text-text-3'>No debates yet</p>
+                            ) : null}
+                            {debates.map((debate) => {
+                                const isActive = activeDebateId === encodeURIComponent(debate.id);
+                                return (
+                                    <div key={debate.id} className='group relative my-px'>
+                                        <button
+                                            type='button'
+                                            onClick={() =>
+                                                navigate(
+                                                    `/debates/${encodeURIComponent(debate.id)}`,
+                                                )
+                                            }
+                                            className={[
+                                                'w-full text-left rounded-[5px] px-3.5 py-2 pr-8 cursor-pointer transition-colors border',
+                                                isActive
+                                                    ? 'bg-bg-elevated border-border-mid'
+                                                    : 'border-transparent hover:bg-bg-hover',
+                                            ].join(' ')}
+                                        >
+                                            <div className='text-xs text-text-1 truncate'>
+                                                {debate.name}
+                                            </div>
+                                            <div className='text-[10px] text-text-3 truncate'>
+                                                {debate.topic}
+                                            </div>
+                                        </button>
 
-                                {/* Delete button — visible on row hover */}
-                                <button
-                                    type='button'
-                                    aria-label={`Delete "${debate.name}"`}
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setPendingDelete(debate);
-                                    }}
-                                    className='absolute right-1 top-1/2 -translate-y-1/2 flex h-5 w-5 items-center justify-center rounded text-text-3 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-bg-elevated hover:text-red-500 cursor-pointer'
-                                >
-                                    <svg
-                                        width='11'
-                                        height='11'
-                                        viewBox='0 0 11 11'
-                                        fill='none'
-                                        aria-hidden='true'
-                                    >
-                                        <path
-                                            d='M1 2.5h9M3.5 2.5V1.75A.25.25 0 0 1 3.75 1.5h3.5a.25.25 0 0 1 .25.25V2.5M4 4.5v3M7 4.5v3M2 2.5l.75 6.75a.25.25 0 0 0 .25.25h5a.25.25 0 0 0 .25-.25L9 2.5'
-                                            stroke='currentColor'
-                                            strokeWidth='1'
-                                            strokeLinecap='round'
-                                            strokeLinejoin='round'
-                                        />
-                                    </svg>
-                                </button>
-                            </div>
-                        );
-                    })}
-                </div>
+                                        {/* Delete button — visible on row hover */}
+                                        <button
+                                            type='button'
+                                            aria-label={`Delete "${debate.name}"`}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setPendingDelete(debate);
+                                            }}
+                                            className='absolute right-1 top-1/2 -translate-y-1/2 flex h-5 w-5 items-center justify-center rounded text-text-3 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-bg-elevated hover:text-red-500 cursor-pointer'
+                                        >
+                                            <svg
+                                                width='11'
+                                                height='11'
+                                                viewBox='0 0 11 11'
+                                                fill='none'
+                                                aria-hidden='true'
+                                            >
+                                                <path
+                                                    d='M1 2.5h9M3.5 2.5V1.75A.25.25 0 0 1 3.75 1.5h3.5a.25.25 0 0 1 .25.25V2.5M4 4.5v3M7 4.5v3M2 2.5l.75 6.75a.25.25 0 0 0 .25.25h5a.25.25 0 0 0 .25-.25L9 2.5'
+                                                    stroke='currentColor'
+                                                    strokeWidth='1'
+                                                    strokeLinecap='round'
+                                                    strokeLinejoin='round'
+                                                />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </>
+                )}
 
-                {/* Bottom user */}
-                <div className='border-t border-border px-4 py-3 flex items-center gap-2'>
-                    <div className='flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full bg-bg-elevated border border-border-mid text-[10px] text-text-2'>
-                        B
+                {/* Spacer when collapsed */}
+                {collapsed && <div className='flex-1' />}
+
+                {/* Bottom section: user */}
+                <div
+                    className={`border-t border-border flex items-center ${
+                        collapsed ? 'justify-center py-3 px-0' : 'gap-2 px-4 py-3'
+                    }`}
+                >
+                    <div
+                        className='flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-full bg-bg-elevated border border-border-mid text-[10px] text-text-2'
+                        title={collapsed ? 'parley' : undefined}
+                    >
+                        P
                     </div>
-                    <span className='text-xs text-text-2'>parley</span>
+                    {!collapsed && <span className='text-xs text-text-2'>parley</span>}
                 </div>
             </aside>
 

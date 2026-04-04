@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import {
     Form,
     redirect,
@@ -9,9 +9,11 @@ import {
 } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { useToast } from '@/components/ui/ToastProvider';
 import { writeStoredSessionConfig, DEFAULT_TURN_COUNT } from '@/lib/debateSessionConfig';
-import { ApiError } from '@/services/api/http';
+import { ApiError, getErrorMessage } from '@/services/api/http';
 import { createDebate, type CreateDebatePayload } from '@/services/api/debates';
+import { getConfig } from '@/services/api/config';
 
 type AgentFormValue = {
     name: string;
@@ -22,7 +24,10 @@ type ActionData = {
     error?: string;
 };
 
-const TTS_PROVIDERS = [{ value: 'inworld', label: 'Inworld (cloud)' }];
+const TTS_PROVIDERS = [
+    { value: 'native', label: 'Native (local)' },
+    { value: 'inworld', label: 'Inworld (cloud)' },
+];
 
 const EMPTY_AGENT: AgentFormValue = { name: '', stance: '' };
 
@@ -85,11 +90,12 @@ export async function action({ request }: { request: Request }) {
     const formData = await request.formData();
     const topic = (formData.get('topic')?.toString() ?? '').trim();
     const name = (formData.get('name')?.toString() ?? '').trim();
-    const ttsProvider = (formData.get('tts_provider')?.toString() ?? 'inworld').trim();
+    const ttsProvider = (formData.get('tts_provider')?.toString() ?? 'native').trim();
     const turnCount = Number.parseInt(
         formData.get('turn_count')?.toString() ?? String(DEFAULT_TURN_COUNT),
         10,
     );
+    const playAudio = formData.get('play_audio')?.toString() === '1';
     const agents = parseAgentsFromFormData(formData);
 
     const validation = validateFields({ topic, name, agents });
@@ -113,19 +119,19 @@ export async function action({ request }: { request: Request }) {
                 name: a.name.trim() || undefined,
                 stance: a.stance.trim() || undefined,
             }));
+    } else {
+        // When no agents are specified, request server to generate agents based on form count
+        payload.num_agents = agents.length;
     }
 
     try {
         const created = await createDebate(payload);
         writeStoredSessionConfig(created.id, { turnCount });
-        return redirect(`/debates/${encodeURIComponent(created.id)}?round=${turnCount}`);
+        const redirectUrl = `/debates/${encodeURIComponent(created.id)}?round=${turnCount}${playAudio ? '&autoplay=1' : ''}`;
+        return redirect(redirectUrl);
     } catch (error) {
         if (error instanceof ApiError && error.status === 400) {
-            const msg =
-                typeof error.body === 'object' && error.body && 'error' in error.body
-                    ? String((error.body as { error: string }).error)
-                    : error.message;
-            return { error: msg };
+            return { error: getErrorMessage(error, 'Something went wrong') };
         }
         throw error;
     }
@@ -134,12 +140,14 @@ export async function action({ request }: { request: Request }) {
 export function Component() {
     const actionData = useActionData() as ActionData | undefined;
     const navigation = useNavigation();
+    const toast = useToast();
 
     const [topic, setTopic] = useState('');
     const [name, setName] = useState('');
-    const [nameTouched, setNameTouched] = useState(false);
     const [turnCount, setTurnCount] = useState(DEFAULT_TURN_COUNT);
-    const [ttsProvider, setTtsProvider] = useState('inworld');
+    const [ttsProvider, setTtsProvider] = useState('');
+    const [playAudioImmediately, setPlayAudioImmediately] = useState(false);
+    const [configLoaded, setConfigLoaded] = useState(false);
     const [agents, setAgents] = useState<AgentFormValue[]>([
         { ...EMPTY_AGENT },
         { ...EMPTY_AGENT },
@@ -175,9 +183,35 @@ export function Component() {
     }, [actionData?.error, navigation.state]);
 
     useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        if (!nameTouched && !name.trim() && topic.trim()) setName(topic.trim());
-    }, [topic, name, nameTouched]);
+        let cancelled = false;
+        getConfig()
+            .then((cfg) => {
+                if (cancelled) return;
+                // Use config TTS provider if set, otherwise default to native
+                const provider = cfg.tts?.provider?.trim() || 'native';
+
+                setTtsProvider(provider);
+
+                setConfigLoaded(true);
+            })
+            .catch(() => {
+                if (cancelled) return;
+                // On error, default to native
+
+                setTtsProvider('native');
+
+                setConfigLoaded(true);
+                toast.error(
+                    'Could not load runtime config. Using Native as the fallback TTS provider.',
+                    {
+                        title: 'Using fallback config',
+                    },
+                );
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [toast]);
 
     function markDirty() {
         if (!isDirty) setIsDirty(true);
@@ -223,19 +257,6 @@ export function Component() {
         updateAgents((c) => (c.length <= 2 ? c : c.filter((_, i) => i !== index)));
     }
 
-    const payloadPreview = useMemo(() => {
-        const next: CreateDebatePayload = { topic: topic.trim(), tts_provider: ttsProvider };
-        if (name.trim()) next.name = name.trim();
-        const filteredAgents = agents
-            .filter((a) => Boolean(a.name.trim() || a.stance.trim()))
-            .map((a) => ({
-                ...(a.name.trim() ? { name: a.name.trim() } : {}),
-                ...(a.stance.trim() ? { stance: a.stance.trim() } : {}),
-            }));
-        if (filteredAgents.length > 0) next.agents = filteredAgents;
-        return next;
-    }, [agents, ttsProvider, name, topic]);
-
     function fieldError(field: string) {
         return touched[field] ? fieldErrors[field] : undefined;
     }
@@ -266,13 +287,15 @@ export function Component() {
                     </div>
                 ) : null}
 
-                <div className='grid gap-6 lg:grid-cols-[1fr_320px]'>
+                <div className='max-w-xl'>
                     <Form
                         method='post'
                         className='rounded-lg border border-border bg-bg-surface p-4'
                         onSubmit={handleSubmit}
                     >
                         <div className='space-y-6'>
+                            <input type='hidden' name='name' value={name} />
+
                             {/* Topic */}
                             <div>
                                 <label
@@ -311,33 +334,39 @@ export function Component() {
                                 >
                                     TTS provider
                                 </label>
-                                <div className='grid gap-2 grid-cols-2'>
-                                    {TTS_PROVIDERS.map((p) => (
-                                        <label
-                                            key={p.value}
-                                            className={`cursor-pointer rounded border px-3 py-2 text-xs transition-colors ${
-                                                ttsProvider === p.value
-                                                    ? 'border-accent bg-bg-elevated text-text-1'
-                                                    : 'border-border bg-bg-base text-text-2 hover:border-border-mid hover:text-text-1'
-                                            }`}
-                                        >
-                                            <input
-                                                className='sr-only'
-                                                type='radio'
-                                                name='tts_provider'
-                                                value={p.value}
-                                                checked={ttsProvider === p.value}
-                                                onChange={() => {
-                                                    setTtsProvider(p.value);
-                                                    markDirty();
-                                                }}
-                                            />
-                                            <span className='block text-xs font-semibold'>
-                                                {p.label}
-                                            </span>
-                                        </label>
-                                    ))}
-                                </div>
+                                {!configLoaded ? (
+                                    <div className='h-10 flex items-center text-xs text-text-3'>
+                                        Loading…
+                                    </div>
+                                ) : (
+                                    <div className='grid gap-2 grid-cols-2'>
+                                        {TTS_PROVIDERS.map((p) => (
+                                            <label
+                                                key={p.value}
+                                                className={`cursor-pointer rounded border px-3 py-2 text-xs transition-colors ${
+                                                    ttsProvider === p.value
+                                                        ? 'border-accent bg-bg-elevated text-text-1'
+                                                        : 'border-border bg-bg-base text-text-2 hover:border-border-mid hover:text-text-1'
+                                                }`}
+                                            >
+                                                <input
+                                                    className='sr-only'
+                                                    type='radio'
+                                                    name='tts_provider'
+                                                    value={p.value}
+                                                    checked={ttsProvider === p.value}
+                                                    onChange={() => {
+                                                        setTtsProvider(p.value);
+                                                        markDirty();
+                                                    }}
+                                                />
+                                                <span className='block text-xs font-semibold'>
+                                                    {p.label}
+                                                </span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Initial rounds */}
@@ -365,9 +394,73 @@ export function Component() {
                                     className='w-24 rounded-lg border border-border-mid bg-bg-surface px-3 py-2 text-center font-mono text-[13px] text-text-1 outline-none transition-colors focus:border-accent-dim'
                                 />
                                 <p className='mt-1.5 text-[11px] text-text-3'>
-                                    1–20. Stored locally and passed as{' '}
-                                    <code className='font-mono text-[10px]'>?n=</code> to the SSE
-                                    stream.
+                                    Number of debate rounds to generate (1–20).
+                                </p>
+                            </div>
+
+                            {/* Play audio immediately toggle */}
+                            <div>
+                                <input
+                                    type='hidden'
+                                    name='play_audio'
+                                    value={playAudioImmediately ? '1' : '0'}
+                                />
+                                <button
+                                    type='button'
+                                    onClick={() => setPlayAudioImmediately(!playAudioImmediately)}
+                                    className={`flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm transition-colors ${
+                                        playAudioImmediately
+                                            ? 'border-accent bg-accent/10 text-accent'
+                                            : 'border-border bg-bg-surface text-text-2 hover:border-border-mid'
+                                    }`}
+                                >
+                                    <span className='flex items-center gap-2'>
+                                        <svg
+                                            className='h-4 w-4'
+                                            fill='none'
+                                            viewBox='0 0 24 24'
+                                            stroke='currentColor'
+                                            strokeWidth={2}
+                                        >
+                                            {playAudioImmediately ? (
+                                                <path
+                                                    strokeLinecap='round'
+                                                    strokeLinejoin='round'
+                                                    d='M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z'
+                                                />
+                                            ) : (
+                                                <>
+                                                    <path
+                                                        strokeLinecap='round'
+                                                        strokeLinejoin='round'
+                                                        d='M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z'
+                                                    />
+                                                    <path
+                                                        strokeLinecap='round'
+                                                        strokeLinejoin='round'
+                                                        d='M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2'
+                                                    />
+                                                </>
+                                            )}
+                                        </svg>
+                                        <span>Play audio immediately</span>
+                                    </span>
+                                    <span
+                                        className={`h-4 w-7 rounded-full transition-colors ${
+                                            playAudioImmediately ? 'bg-accent' : 'bg-border'
+                                        }`}
+                                    >
+                                        <span
+                                            className={`block h-3 w-3 translate-y-0.5 rounded-full bg-white transition-transform ${
+                                                playAudioImmediately
+                                                    ? 'translate-x-3.5'
+                                                    : 'translate-x-0.5'
+                                            }`}
+                                        />
+                                    </span>
+                                </button>
+                                <p className='mt-1.5 text-[11px] text-text-3'>
+                                    Automatically play each round&apos;s audio as it completes.
                                 </p>
                             </div>
 
@@ -441,11 +534,9 @@ export function Component() {
                                             </label>
                                             <Input
                                                 id='name'
-                                                name='name'
                                                 value={name}
                                                 placeholder='Auto-generated from topic if left empty'
                                                 onChange={(e) => {
-                                                    setNameTouched(true);
                                                     setName(e.target.value);
                                                     markDirty();
                                                 }}
@@ -482,59 +573,67 @@ export function Component() {
                                                         </Button>
                                                     </div>
                                                     <div className='space-y-3'>
-                                        {(['name', 'stance'] as const).map((field) => (
-                                                            <div key={field}>
-                                                                <label
-                                                                    className='mb-1 block text-xs text-text-2'
-                                                                    htmlFor={`agent-${index}-${field}`}
-                                                                >
-                                                                    {field.charAt(0).toUpperCase() +
-                                                                        field.slice(1)}
-                                                                </label>
-                                                                <Input
-                                                                    id={`agent-${index}-${field}`}
-                                                                    name={`agent-${index}-${field}`}
-                                                                    aria-label={`Agent ${index + 1} ${field}`}
-                                                                placeholder={
-                                                                    field === 'name'
-                                                                        ? 'E.g., Alice'
-                                                                        : 'E.g., Pro-innovation'
-                                                                }
-                                                                    value={agent[field]}
-                                                                    onChange={(e) => {
-                                                                        updateAgents((c) => {
-                                                                            const next = [...c];
-                                                                            next[index] = {
-                                                                                ...next[index],
-                                                                                [field]:
-                                                                                    e.target.value,
-                                                                            };
-                                                                            return next;
-                                                                        });
-                                                                    }}
-                                                                    onBlur={() =>
-                                                                        handleBlur(
-                                                                            getAgentFieldKey(
-                                                                                index,
-                                                                                field,
-                                                                            ),
-                                                                        )
-                                                                    }
-                                                                />
-                                                                {fieldError(
-                                                                    getAgentFieldKey(index, field),
-                                                                ) ? (
-                                                                    <p className='mt-1 text-xs text-error'>
-                                                                        {fieldError(
-                                                                            getAgentFieldKey(
-                                                                                index,
-                                                                                field,
-                                                                            ),
-                                                                        )}
-                                                                    </p>
-                                                                ) : null}
-                                                            </div>
-                                                        ))}
+                                                        {(['name', 'stance'] as const).map(
+                                                            (field) => (
+                                                                <div key={field}>
+                                                                    <label
+                                                                        className='mb-1 block text-xs text-text-2'
+                                                                        htmlFor={`agent-${index}-${field}`}
+                                                                    >
+                                                                        {field
+                                                                            .charAt(0)
+                                                                            .toUpperCase() +
+                                                                            field.slice(1)}
+                                                                    </label>
+                                                                    <Input
+                                                                        id={`agent-${index}-${field}`}
+                                                                        name={`agent-${index}-${field}`}
+                                                                        aria-label={`Agent ${index + 1} ${field}`}
+                                                                        placeholder={
+                                                                            field === 'name'
+                                                                                ? 'E.g., Alice'
+                                                                                : 'E.g., Pro-innovation'
+                                                                        }
+                                                                        value={agent[field]}
+                                                                        onChange={(e) => {
+                                                                            updateAgents((c) => {
+                                                                                const next = [...c];
+                                                                                next[index] = {
+                                                                                    ...next[index],
+                                                                                    [field]:
+                                                                                        e.target
+                                                                                            .value,
+                                                                                };
+                                                                                return next;
+                                                                            });
+                                                                        }}
+                                                                        onBlur={() =>
+                                                                            handleBlur(
+                                                                                getAgentFieldKey(
+                                                                                    index,
+                                                                                    field,
+                                                                                ),
+                                                                            )
+                                                                        }
+                                                                    />
+                                                                    {fieldError(
+                                                                        getAgentFieldKey(
+                                                                            index,
+                                                                            field,
+                                                                        ),
+                                                                    ) ? (
+                                                                        <p className='mt-1 text-xs text-error'>
+                                                                            {fieldError(
+                                                                                getAgentFieldKey(
+                                                                                    index,
+                                                                                    field,
+                                                                                ),
+                                                                            )}
+                                                                        </p>
+                                                                    ) : null}
+                                                                </div>
+                                                            ),
+                                                        )}
                                                     </div>
                                                 </div>
                                             ))}
@@ -563,30 +662,6 @@ export function Component() {
                             </div>
                         </div>
                     </Form>
-
-                    <div className='space-y-4'>
-                        <aside className='rounded-xl border border-border bg-bg-panel p-4'>
-                            <div className='mb-2 text-[9px] font-semibold uppercase tracking-[0.08em] text-text-3'>
-                                POST /api/debates
-                            </div>
-                            <pre className='overflow-auto font-mono text-[10px] text-text-3 leading-[1.8]'>
-                                {topic.trim()
-                                    ? JSON.stringify(payloadPreview, null, 2)
-                                    : '{\n  "topic": "",\n  "tts_provider": "inworld"\n}'}
-                            </pre>
-                        </aside>
-                        <aside className='rounded-xl border border-border bg-bg-panel p-4'>
-                            <div className='mb-2 text-[9px] font-semibold uppercase tracking-[0.08em] text-text-3'>
-                                Session config (localStorage)
-                            </div>
-                            <pre className='font-mono text-[10px] text-text-3 leading-[1.8]'>
-                                {`{ "turnCount": ${turnCount} }`}
-                            </pre>
-                            <p className='mt-1.5 text-[10px] text-text-3'>
-                                Keyed by debate id after creation.
-                            </p>
-                        </aside>
-                    </div>
                 </div>
 
                 {blocker.state === 'blocked' ? (

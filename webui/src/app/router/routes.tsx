@@ -40,6 +40,10 @@ export const routes: RouteObject[] = [
                 path: 'debates/:debateId/audio',
                 lazy: () => import('@/routes/debates/audio/route'),
             },
+            {
+                path: 'settings',
+                lazy: () => import('@/routes/settings/route'),
+            },
         ],
     },
 ];
