@@ -39,7 +39,7 @@ func newConnectWhatsappCommand() *cobra.Command {
 				}
 			}
 
-			code, finalize, waitScan, err := whatsapp.Connect(ctx)
+			code, waitScan, finalize, err := whatsapp.Connect(ctx)
 			if err != nil {
 				return err
 			}

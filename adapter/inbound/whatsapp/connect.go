@@ -105,7 +105,7 @@ func Connect(ctx context.Context) (
 	for item := range qrCh {
 		switch {
 		case item.Event == whatsmeow.QRChannelEventCode:
-			return item, finalize, waitScan, nil
+			return item, waitScan, finalize, nil
 		case item == whatsmeow.QRChannelTimeout:
 			return whatsmeow.QRChannelItem{}, nil, nil, fmt.Errorf("qr timeout")
 		case item.Event == whatsmeow.QRChannelEventError:
