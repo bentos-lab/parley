@@ -2,6 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { useLoaderData, useRevalidator } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import {
+    getLlmProviderPreset,
+    inferLlmProviderPresetId,
+    INWORLD_MODEL_OPTIONS,
+    LLM_PROVIDER_PRESETS,
+    type LlmProviderPresetId,
+    type ProviderModelOption,
+} from '@/lib/providerCatalog';
 import { getConfig, updateConfig } from '@/services/api/config';
 import { getErrorMessage } from '@/services/api/http';
 import { ConfigResponseSchema } from '@/services/api/schemas';
@@ -66,6 +74,51 @@ const TTS_PROVIDERS = [
     { value: 'inworld', label: 'Inworld' },
 ];
 
+const CUSTOM_MODEL_VALUE = '__custom_model__';
+
+interface SelectFieldProps {
+    id: string;
+    value: string;
+    onChange: (value: string) => void;
+    options: ProviderModelOption[];
+    disabled?: boolean;
+}
+
+function SelectField({ id, value, onChange, options, disabled = false }: SelectFieldProps) {
+    return (
+        <div className='relative'>
+            <select
+                id={id}
+                value={value}
+                onChange={(event) => onChange(event.target.value)}
+                disabled={disabled}
+                className='w-full appearance-none rounded border border-border bg-bg-surface px-3 py-1.5 pr-9 text-xs font-sans text-text-1 focus:border-accent-dim focus:outline-none focus:ring-1 focus:ring-accent/30 disabled:cursor-not-allowed disabled:opacity-50'
+            >
+                {options.map((option) => (
+                    <option key={option.value} value={option.value}>
+                        {option.deprecated ? `${option.label} (deprecated)` : option.label}
+                    </option>
+                ))}
+                <option value={CUSTOM_MODEL_VALUE}>Custom model</option>
+            </select>
+            <svg
+                className='pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-3'
+                viewBox='0 0 16 16'
+                fill='none'
+                aria-hidden='true'
+            >
+                <path
+                    d='M4 6l4 4 4-4'
+                    stroke='currentColor'
+                    strokeWidth='1.4'
+                    strokeLinecap='round'
+                    strokeLinejoin='round'
+                />
+            </svg>
+        </div>
+    );
+}
+
 // eslint-disable-next-line react-refresh/only-export-components
 export async function loader() {
     const data = await getConfig();
@@ -76,8 +129,11 @@ export function Component() {
     const config = useLoaderData() as ConfigResponse;
     const revalidator = useRevalidator();
     const successTimeoutRef = useRef<number | null>(null);
+    const initialProviderPreset = inferLlmProviderPresetId(config.llm.openai.base_url);
 
     // LLM state
+    const [llmProviderPresetId, setLlmProviderPresetId] =
+        useState<LlmProviderPresetId>(initialProviderPreset);
     const [llmBaseUrl, setLlmBaseUrl] = useState(config.llm.openai.base_url);
     const [llmApiKey, setLlmApiKey] = useState(config.llm.openai.api_key);
     const [llmModel, setLlmModel] = useState(config.llm.openai.model);
@@ -93,6 +149,18 @@ export function Component() {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
+
+    const llmPreset = getLlmProviderPreset(llmProviderPresetId);
+    const llmUsesPresetBaseUrl = llmProviderPresetId !== 'custom';
+    const hasPresetLlmModel = llmPreset.models.some((model) => model.value === llmModel);
+    const llmModelSelectionValue = hasPresetLlmModel ? llmModel : CUSTOM_MODEL_VALUE;
+    const hasKnownInworldModel = INWORLD_MODEL_OPTIONS.some(
+        (model) => model.value === inworldModel,
+    );
+    const inworldModelSelectionValue = hasKnownInworldModel ? inworldModel : CUSTOM_MODEL_VALUE;
+    const selectedInworldModel = INWORLD_MODEL_OPTIONS.find(
+        (model) => model.value === inworldModel,
+    );
 
     useEffect(() => {
         return () => {
@@ -115,7 +183,7 @@ export function Component() {
         const payload: ConfigUpdatePayload = {
             llm: {
                 openai: {
-                    base_url: llmBaseUrl,
+                    base_url: llmUsesPresetBaseUrl ? llmPreset.baseUrl : llmBaseUrl,
                     api_key: llmApiKey,
                     model: llmModel,
                 },
@@ -144,6 +212,48 @@ export function Component() {
         } finally {
             setSaving(false);
         }
+    }
+
+    function handleProviderPresetChange(nextPresetId: LlmProviderPresetId) {
+        setLlmProviderPresetId(nextPresetId);
+
+        if (nextPresetId === 'custom') {
+            return;
+        }
+
+        const nextPreset = getLlmProviderPreset(nextPresetId);
+        setLlmBaseUrl(nextPreset.baseUrl);
+        setLlmModel((currentModel) => {
+            if (nextPreset.models.some((model) => model.value === currentModel)) {
+                return currentModel;
+            }
+
+            return nextPreset.defaultModel;
+        });
+    }
+
+    function handleLlmModelSelection(nextValue: string) {
+        if (nextValue === CUSTOM_MODEL_VALUE) {
+            setLlmModel((currentModel) =>
+                llmPreset.models.some((model) => model.value === currentModel) ? '' : currentModel,
+            );
+            return;
+        }
+
+        setLlmModel(nextValue);
+    }
+
+    function handleInworldModelSelection(nextValue: string) {
+        if (nextValue === CUSTOM_MODEL_VALUE) {
+            setInworldModel((currentModel) =>
+                INWORLD_MODEL_OPTIONS.some((model) => model.value === currentModel)
+                    ? ''
+                    : currentModel,
+            );
+            return;
+        }
+
+        setInworldModel(nextValue);
     }
 
     return (
@@ -185,6 +295,43 @@ export function Component() {
                     </h2>
 
                     <div className='space-y-4'>
+                        <div>
+                            <label className='mb-2 block text-[11px] font-semibold uppercase tracking-[0.04em] text-text-2'>
+                                Provider preset
+                            </label>
+                            <div className='grid gap-2 sm:grid-cols-2'>
+                                {LLM_PROVIDER_PRESETS.map((preset) => (
+                                    <label
+                                        key={preset.id}
+                                        className={`cursor-pointer rounded border px-3 py-2.5 transition-colors ${
+                                            llmProviderPresetId === preset.id
+                                                ? 'border-accent bg-bg-elevated text-text-1'
+                                                : 'border-border bg-bg-base text-text-2 hover:border-border-mid hover:text-text-1'
+                                        }`}
+                                    >
+                                        <input
+                                            className='sr-only'
+                                            type='radio'
+                                            name='llm_provider_preset'
+                                            value={preset.id}
+                                            checked={llmProviderPresetId === preset.id}
+                                            onChange={() => handleProviderPresetChange(preset.id)}
+                                        />
+                                        <span className='block text-xs font-semibold'>
+                                            {preset.label}
+                                        </span>
+                                        <span className='mt-1 block text-[11px] leading-4 text-text-3'>
+                                            {preset.description}
+                                        </span>
+                                    </label>
+                                ))}
+                            </div>
+                            <p className='mt-1.5 text-[11px] text-text-3'>
+                                Parley uses OpenAI-compatible chat endpoints. These presets fill the
+                                correct base URL and model list for common providers.
+                            </p>
+                        </div>
+
                         {/* Base URL */}
                         <div>
                             <label
@@ -196,12 +343,15 @@ export function Component() {
                             <Input
                                 id='llm-base-url'
                                 type='url'
-                                value={llmBaseUrl}
+                                value={llmUsesPresetBaseUrl ? llmPreset.baseUrl : llmBaseUrl}
                                 onChange={(e) => setLlmBaseUrl(e.target.value)}
                                 placeholder='https://api.openai.com/v1'
+                                disabled={llmUsesPresetBaseUrl}
                             />
                             <p className='mt-1.5 text-[11px] text-text-3'>
-                                OpenAI API base URL or compatible endpoint.
+                                {llmUsesPresetBaseUrl
+                                    ? 'Filled automatically from the selected provider preset.'
+                                    : 'Manual OpenAI-compatible base URL for custom providers or proxies.'}
                             </p>
                         </div>
 
@@ -248,15 +398,35 @@ export function Component() {
                             >
                                 Model
                             </label>
-                            <Input
-                                id='llm-model'
-                                type='text'
-                                value={llmModel}
-                                onChange={(e) => setLlmModel(e.target.value)}
-                                placeholder='gpt-4o'
-                            />
+                            {llmPreset.models.length > 0 ? (
+                                <SelectField
+                                    id='llm-model'
+                                    value={llmModelSelectionValue}
+                                    onChange={handleLlmModelSelection}
+                                    options={llmPreset.models}
+                                />
+                            ) : (
+                                <Input
+                                    id='llm-model'
+                                    type='text'
+                                    value={llmModel}
+                                    onChange={(e) => setLlmModel(e.target.value)}
+                                    placeholder='provider/model-or-alias'
+                                />
+                            )}
+                            {llmPreset.models.length > 0 &&
+                            llmModelSelectionValue === CUSTOM_MODEL_VALUE ? (
+                                <Input
+                                    className='mt-2'
+                                    type='text'
+                                    value={llmModel}
+                                    onChange={(e) => setLlmModel(e.target.value)}
+                                    placeholder='Enter a custom model identifier'
+                                />
+                            ) : null}
                             <p className='mt-1.5 text-[11px] text-text-3'>
-                                Model identifier (e.g., gpt-4o, gpt-4-turbo).
+                                Select a published chat/completions model or enter a custom
+                                identifier.
                             </p>
                         </div>
                     </div>
@@ -366,16 +536,31 @@ export function Component() {
                                     >
                                         Inworld Model
                                     </label>
-                                    <Input
+                                    <SelectField
                                         id='inworld-model'
-                                        type='text'
-                                        value={inworldModel}
-                                        onChange={(e) => setInworldModel(e.target.value)}
-                                        placeholder='Enter model identifier'
+                                        value={inworldModelSelectionValue}
+                                        onChange={handleInworldModelSelection}
+                                        options={INWORLD_MODEL_OPTIONS}
                                     />
+                                    {inworldModelSelectionValue === CUSTOM_MODEL_VALUE ? (
+                                        <Input
+                                            className='mt-2'
+                                            type='text'
+                                            value={inworldModel}
+                                            onChange={(e) => setInworldModel(e.target.value)}
+                                            placeholder='Enter a custom Inworld model identifier'
+                                        />
+                                    ) : null}
                                     <p className='mt-1.5 text-[11px] text-text-3'>
-                                        Inworld TTS model identifier.
+                                        Pick from current Inworld TTS releases or enter a custom
+                                        model identifier.
                                     </p>
+                                    {selectedInworldModel?.deprecated ? (
+                                        <div className='mt-2 rounded-lg border border-stale-border/50 bg-stale-bg px-3 py-2 text-[11px] text-stale'>
+                                            This Inworld model is deprecated. Prefer the 1.5 Max or
+                                            1.5 Mini family for new setups.
+                                        </div>
+                                    ) : null}
                                 </div>
                             </>
                         )}
