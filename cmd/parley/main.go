@@ -38,7 +38,7 @@ func main() {
 		LLMModel:   cfg.OpenAI.Model,
 		TTSModel:   cfg.InworldModel,
 	}
-	rootCmd := newRootCommand(ctx, usecases, runtime, cfg.TTSProvider, cfg)
+	rootCmd := newRootCommand(ctx, usecases, runtime, cfg.TTSProvider)
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		log.Fatalf("cli error: %v", err)
 	}
@@ -48,7 +48,7 @@ func main() {
 // Parameters: ctx is the fallback execution context, service is the debate service handler,
 // runtime carries display information, defaultTTSProvider and cfg provide shared preferences.
 // Returns: the configured Cobra root command.
-func newRootCommand(ctx context.Context, usecases *wiring.Usecases, runtime cli.RuntimeInfo, defaultTTSProvider string, cfg config.Config) *cobra.Command {
+func newRootCommand(ctx context.Context, usecases *wiring.Usecases, runtime cli.RuntimeInfo, defaultTTSProvider string) *cobra.Command {
 	root := &cobra.Command{
 		Use:          "parley",
 		Version:      version,
@@ -58,12 +58,12 @@ func newRootCommand(ctx context.Context, usecases *wiring.Usecases, runtime cli.
 				return fmt.Errorf("unknown command: %s", args[0])
 			}
 
-			return runDesktopLauncher(commandContext(cmd, ctx), usecases, cfg)
+			return runDesktopLauncher(commandContext(cmd, ctx))
 		},
 	}
 	root.SetVersionTemplate("version: {{.Version}}\n")
 	root.PersistentFlags().String("tts-provider", defaultTTSProvider, "override the TTS provider")
-	root.AddCommand(newServeCommand(usecases, cfg))
+	root.AddCommand(newServeCommand())
 	root.AddCommand(newConfigCommand())
 	root.AddCommand(newLoginCommand())
 	root.AddCommand(newConnectWhatsappCommand())

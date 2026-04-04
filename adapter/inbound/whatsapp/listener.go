@@ -17,7 +17,6 @@ import (
 	"go.mau.fi/whatsmeow/types/events"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/bentos-lab/parley/config"
 	"github.com/bentos-lab/parley/core"
 	"github.com/bentos-lab/parley/core/debate"
 	"github.com/bentos-lab/parley/shared/audio"
@@ -31,8 +30,6 @@ const (
 
 type Listener struct {
 	client       *whatsmeow.Client
-	usecases     *wiring.Usecases
-	cfg          config.Config
 	history      *historyStore
 	handlerID    uint32
 	parseUsecase *core.ParseParleyCommandUsecase
@@ -41,28 +38,20 @@ type Listener struct {
 // NewListener builds a WhatsApp listener if a session already exists in the cache.
 // Parameters: ctx controls cancellation, usecases provides the debate usecases, cfg drives provider settings.
 // Returns: listener ready to start and any error encountered while preparing the WhatsApp client.
-func NewListener(ctx context.Context, usecases *wiring.Usecases, cfg config.Config) (*Listener, error) {
+func NewListener(ctx context.Context) (*Listener, error) {
 	device, err := getDevice(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("read device: %w", err)
 	}
 	client := whatsmeow.NewClient(device, nil)
-	if usecases == nil {
-		return nil, errors.New("usecases are required")
-	}
-	if usecases.ParseParleyCommand == nil {
-		return nil, errors.New("parse usecase is required")
-	}
+
 	history, err := newHistoryStore()
 	if err != nil {
 		return nil, fmt.Errorf("init history store: %w", err)
 	}
 	return &Listener{
-		client:       client,
-		usecases:     usecases,
-		cfg:          cfg,
-		history:      history,
-		parseUsecase: usecases.ParseParleyCommand,
+		client:  client,
+		history: history,
 	}, nil
 }
 
@@ -194,11 +183,16 @@ func (l *Listener) executeCommand(ctx context.Context, chat types.JID, cmd core.
 // Parameters: ctx is the context, chat identifies the receiving WhatsApp chat, cmd carries the parsed command details.
 // Returns: reply text describing success or errors.
 func (l *Listener) handleCreate(ctx context.Context, chat types.JID, cmd core.ParleyCommand) string {
+	usecases, cfg, err := wiring.LoadUsecases()
+	if err != nil {
+		return "[parley] Internal error"
+	}
+
 	topic := strings.TrimSpace(cmd.Topic)
 	if topic == "" {
 		return "[parley] Please provide a topic to start the debate."
 	}
-	nameOutput, err := l.usecases.GenerateDebateName.Execute(ctx, core.GenerateDebateNameInput{Topic: topic})
+	nameOutput, err := usecases.GenerateDebateName.Execute(ctx, core.GenerateDebateNameInput{Topic: topic})
 	if err != nil {
 		l.logError("generate debate name", err)
 		return "[parley] Unable to start the debate right now."
@@ -208,19 +202,19 @@ func (l *Listener) handleCreate(ctx context.Context, chat types.JID, cmd core.Pa
 		l.logError("build agents", err)
 		return "[parley] Unable to start the debate right now."
 	}
-	voicesOutput, err := l.usecases.AssignDebateVoices.Execute(ctx, core.AssignDebateVoicesInput{
+	voicesOutput, err := usecases.AssignDebateVoices.Execute(ctx, core.AssignDebateVoicesInput{
 		Agents:      agents,
-		TTSProvider: l.cfg.TTSProvider,
+		TTSProvider: cfg.TTSProvider,
 	})
 	if err != nil {
 		l.logError("assign voices", err)
 		return "[parley] Unable to start the debate right now."
 	}
-	createOutput, err := l.usecases.CreateDebate.Execute(ctx, core.CreateDebateInput{
+	createOutput, err := usecases.CreateDebate.Execute(ctx, core.CreateDebateInput{
 		Name:        nameOutput.Name,
 		Topic:       topic,
 		Agents:      voicesOutput.Agents,
-		TTSProvider: l.cfg.TTSProvider,
+		TTSProvider: cfg.TTSProvider,
 	})
 	if err != nil {
 		l.logError("create debate", err)
@@ -229,7 +223,7 @@ func (l *Listener) handleCreate(ctx context.Context, chat types.JID, cmd core.Pa
 	filename := createOutput.Filename
 	id := debate.IDFromFilename(filename)
 	for i := 0; i < cmd.NumRounds; i++ {
-		if _, err := l.usecases.CreateRound.Execute(ctx, core.CreateRoundInput{Filename: filename}); err != nil {
+		if _, err := usecases.CreateRound.Execute(ctx, core.CreateRoundInput{Filename: filename}); err != nil {
 			l.logError(fmt.Sprintf("create round %d for debate %s", i+1, id), err)
 			return "[parley] Unable to complete the debate rounds right now."
 		}
@@ -244,16 +238,21 @@ func (l *Listener) handleCreate(ctx context.Context, chat types.JID, cmd core.Pa
 // Parameters: ctx is the context, chat identifies the recipient, cmd contains the debate ID and round count.
 // Returns: response text summarizing the operation.
 func (l *Listener) handleResume(ctx context.Context, chat types.JID, cmd core.ParleyCommand) string {
+	usecases, _, err := wiring.LoadUsecases()
+	if err != nil {
+		return "[parley] Internal error"
+	}
+
 	if cmd.DebateID == "" {
 		return "[parley] Please provide a debate ID to resume."
 	}
 	filename := debate.FilenameFromID(cmd.DebateID)
-	if _, err := l.usecases.LoadDebate.Execute(core.LoadDebateInput{Filename: filename}); err != nil {
+	if _, err := usecases.LoadDebate.Execute(core.LoadDebateInput{Filename: filename}); err != nil {
 		l.logError(fmt.Sprintf("load debate %s", cmd.DebateID), err)
 		return "[parley] Unable to resume the debate right now."
 	}
 	for i := 0; i < cmd.NumRounds; i++ {
-		if _, err := l.usecases.CreateRound.Execute(ctx, core.CreateRoundInput{Filename: filename}); err != nil {
+		if _, err := usecases.CreateRound.Execute(ctx, core.CreateRoundInput{Filename: filename}); err != nil {
 			l.logError(fmt.Sprintf("create round %d for debate %s", i+1, cmd.DebateID), err)
 			return "[parley] Unable to resume the debate right now."
 		}
@@ -268,7 +267,12 @@ func (l *Listener) handleResume(ctx context.Context, chat types.JID, cmd core.Pa
 // Parameters: ctx is unused, chat identifies the recipient, cmd carries parsing metadata.
 // Returns: text listing debate IDs or an error notice.
 func (l *Listener) handleList() string {
-	result, err := l.usecases.ListDebates.Execute()
+	usecases, _, err := wiring.LoadUsecases()
+	if err != nil {
+		return "[parley] Internal error"
+	}
+
+	result, err := usecases.ListDebates.Execute()
 	if err != nil {
 		l.logError("list debates", err)
 		return "[parley] Unable to list debates right now."
@@ -287,11 +291,15 @@ func (l *Listener) handleList() string {
 // Parameters: ctx is unused, chat identifies the requester, cmd contains the debate ID to delete.
 // Returns: confirmation text or an error.
 func (l *Listener) handleDelete(cmd core.ParleyCommand) string {
+	usecases, _, err := wiring.LoadUsecases()
+	if err != nil {
+		return "[parley] Internal error"
+	}
 	if cmd.DebateID == "" {
 		return "[parley] Please provide a debate ID to delete."
 	}
 	filename := debate.FilenameFromID(cmd.DebateID)
-	if err := l.usecases.DeleteDebate.Execute(core.DeleteDebateInput{Filename: filename}); err != nil {
+	if err := usecases.DeleteDebate.Execute(core.DeleteDebateInput{Filename: filename}); err != nil {
 		l.logError(fmt.Sprintf("delete debate %s", cmd.DebateID), err)
 		return "[parley] Unable to delete the requested debate right now."
 	}
@@ -315,6 +323,11 @@ func (l *Listener) handleAudio(ctx context.Context, chat types.JID, cmd core.Par
 // Parameters: ctx is the calling context, cmd captures the command details (topic, agent hints, count).
 // Returns: resolved agent list or an error.
 func (l *Listener) buildAgents(ctx context.Context, cmd core.ParleyCommand) ([]debate.DebateAgent, error) {
+	usecases, _, err := wiring.LoadUsecases()
+	if err != nil {
+		return nil, fmt.Errorf("load usecase: %w", err)
+	}
+
 	if len(cmd.Agents) > 0 {
 		agents := make([]debate.DebateAgent, len(cmd.Agents))
 		for i, agent := range cmd.Agents {
@@ -325,7 +338,7 @@ func (l *Listener) buildAgents(ctx context.Context, cmd core.ParleyCommand) ([]d
 	if cmd.NumAgents <= 0 {
 		cmd.NumAgents = defaultNumAgents
 	}
-	agentsOutput, err := l.usecases.GenerateDebateAgents.Execute(ctx, core.GenerateAgentsInput{
+	agentsOutput, err := usecases.GenerateDebateAgents.Execute(ctx, core.GenerateAgentsInput{
 		Topic: cmd.Topic,
 		Count: cmd.NumAgents,
 	})
@@ -339,8 +352,13 @@ func (l *Listener) buildAgents(ctx context.Context, cmd core.ParleyCommand) ([]d
 // Parameters: ctx controls cancellation, chat identifies the recipient, debateID selects the debate.
 // Returns: any error that occurred while generating or sending the audio.
 func (l *Listener) sendDebateAudio(ctx context.Context, chat types.JID, debateID string) error {
+	usecases, _, err := wiring.LoadUsecases()
+	if err != nil {
+		return fmt.Errorf("load usecase: %w", err)
+	}
+
 	filename := debate.FilenameFromID(debateID)
-	audioOutput, err := l.usecases.GenerateAudio.Execute(ctx, core.GenerateAudioInput{Filename: filename})
+	audioOutput, err := usecases.GenerateAudio.Execute(ctx, core.GenerateAudioInput{Filename: filename})
 	if err != nil {
 		l.logError(fmt.Sprintf("generate audio for debate %s", debateID), err)
 		return err

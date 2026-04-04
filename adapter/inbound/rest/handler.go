@@ -117,12 +117,7 @@ func (h *Handler) Routes(router chi.Router) {
 // Parameters: w is the response writer used for emitting error responses.
 // Returns: the usecases, the loaded config, and a boolean indicating success.
 func (h *Handler) loadUsecases(w http.ResponseWriter) (*wiring.Usecases, config.Config, bool) {
-	cfg, err := config.Load()
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
-		return nil, config.Config{}, false
-	}
-	usecases, err := wiring.BuildUsecases(cfg)
+	usecases, cfg, err := wiring.LoadUsecases()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return nil, config.Config{}, false

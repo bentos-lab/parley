@@ -68,6 +68,10 @@ func (h *Handler) connectWhatsAppSession(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	defer func() {
+		resetWhatsappListenerCh <- struct{}{}
+	}()
+
 	if err := finalize(r.Context()); err != nil {
 		writeSSEData(w, flusher, map[string]string{"error": err.Error()})
 		return
@@ -78,10 +82,21 @@ func (h *Handler) connectWhatsAppSession(w http.ResponseWriter, r *http.Request)
 // Parameters: w is the response writer, r is the HTTP request.
 // Returns: nothing.
 func (h *Handler) deleteWhatsAppSession(w http.ResponseWriter, r *http.Request) {
+	shouldReset, err := h.checkWhatsAppSession(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
 	if err := h.removeWhatsAppSession(); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+
+	if shouldReset {
+		resetWhatsappListenerCh <- struct{}{}
+	}
+
 	w.WriteHeader(http.StatusNoContent)
 }
 

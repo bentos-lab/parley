@@ -8,8 +8,7 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/bentos-lab/parley/config"
-	"github.com/bentos-lab/parley/wiring"
+	"github.com/bentos-lab/parley/adapter/inbound/rest"
 )
 
 var desktopOpenURL = fmt.Sprintf("http://%s", defaultHTTPAddr)
@@ -17,29 +16,21 @@ var desktopOpenURL = fmt.Sprintf("http://%s", defaultHTTPAddr)
 // runDesktopLauncher starts the HTTP server with a CLI-friendly workflow for double-click launches.
 // Parameters: ctx is the parent context, usecases configures services, and cfg provides global configuration.
 // Returns: any fatal error occurred while running the HTTP server or managing the PID file.
-func runDesktopLauncher(ctx context.Context, usecases *wiring.Usecases, cfg config.Config) error {
+func runDesktopLauncher(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	engine := newServeEngine(ctx, usecases, cfg, defaultHTTPAddr)
-	go engine.startWhatsAppListener(ctx)
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer func() {
-		if err := engine.shutdown(shutdownCtx); err != nil {
-			log.Printf("desktop: shutdown failed: %v", err)
-		}
-		shutdownCancel()
-	}()
-
-	fmt.Printf("Parley server listening on http://%s\n", defaultHTTPAddr)
-
 	go func() {
+		time.Sleep(2 * time.Second)
 		if err := openBrowser(desktopOpenURL); err != nil {
 			log.Printf("desktop: open browser failed: %v", err)
 		}
 	}()
 
-	return engine.runRestServer()
+	server := rest.NewServer(defaultHTTPAddr)
+	log.Printf("HTTP server listening on http://%s", defaultHTTPAddr)
+
+	return server.ListenAndServe()
 }
 
 // openBrowser launches the provided URL using a platform-appropriate command.
