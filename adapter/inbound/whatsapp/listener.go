@@ -29,10 +29,9 @@ const (
 )
 
 type Listener struct {
-	client       *whatsmeow.Client
-	history      *historyStore
-	handlerID    uint32
-	parseUsecase *core.ParseParleyCommandUsecase
+	client    *whatsmeow.Client
+	history   *historyStore
+	handlerID uint32
 }
 
 // NewListener builds a WhatsApp listener if a session already exists in the cache.
@@ -109,6 +108,12 @@ func (l *Listener) handleEvent(evt any) {
 // Parameters: evt is the message event, trimmed is the cleaned text, isAudio indicates whether the message is audio-only.
 // Returns: nothing.
 func (l *Listener) chatLoop(evt *events.Message, trimmed string, isAudio bool) {
+	usecases, _, err := wiring.LoadUsecases()
+	if err != nil {
+		fmt.Println("[ERROR] start whatsapp chatloop failed")
+		return
+	}
+
 	if !strings.HasPrefix(trimmed, "/parley") {
 		return
 	}
@@ -128,7 +133,7 @@ func (l *Listener) chatLoop(evt *events.Message, trimmed string, isAudio bool) {
 		DefaultNumAgents: defaultNumAgents,
 		DefaultNumRounds: defaultNumRounds,
 	}
-	output, err := l.parseUsecase.Execute(context.Background(), input)
+	output, err := usecases.ParseParleyCommand.Execute(context.Background(), input)
 	if err != nil {
 		l.logError("parse command", err)
 		l.sendText(evt.Info.Chat, "[parley] Unable to understand your command right now.")
