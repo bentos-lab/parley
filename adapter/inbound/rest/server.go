@@ -55,7 +55,7 @@ func NewServer(addr string) *Server {
 }
 
 func (s *Server) ListenAndServe() error {
-	startWhatsappListener()
+	go startWhatsappListener()
 	return s.server.ListenAndServe()
 }
 
