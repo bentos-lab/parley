@@ -65,7 +65,6 @@ func startWhatsappListener() {
 
 		listener, err := whatsapp.NewListener(listenerCtx)
 		if err != nil {
-			fmt.Println("Failed to create listener:", err)
 			select {
 			case <-time.After(time.Minute):
 			case <-resetWhatsappListenerCh:
