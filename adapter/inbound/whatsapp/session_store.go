@@ -32,6 +32,10 @@ type sessionContainer struct {
 }
 
 func newSessionContainer(path string) (*sessionContainer, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return nil, fmt.Errorf("create connect dir: %w", err)
+	}
+
 	container := &sessionContainer{path: path}
 	container.store = newMemoryStore(container)
 	if err := container.load(); err != nil && !errors.Is(err, os.ErrNotExist) {

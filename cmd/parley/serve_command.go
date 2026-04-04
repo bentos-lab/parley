@@ -1,19 +1,19 @@
 package main
 
 import (
-	"context"
 	"log"
 
 	"github.com/spf13/cobra"
 
-	"github.com/bentos-lab/parley/config"
-	"github.com/bentos-lab/parley/wiring"
+	"github.com/bentos-lab/parley/adapter/inbound/rest"
 )
+
+const defaultHTTPAddr = "localhost:8080"
 
 // newServeCommand builds the Cobra command for running the HTTP server.
 // Parameters: ctx is the base context, usecases contains the debate usecases, cfg carries configured providers.
 // Returns: the configured Cobra command.
-func newServeCommand(usecases *wiring.Usecases, cfg config.Config) *cobra.Command {
+func newServeCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "serve",
 		Short: "Run the HTTP server",
@@ -22,13 +22,12 @@ func newServeCommand(usecases *wiring.Usecases, cfg config.Config) *cobra.Comman
 			if err != nil {
 				return err
 			}
-			reqCtx := commandContext(cmd, context.Background())
-			engine := newServeEngine(reqCtx, usecases, cfg, httpAddr)
-			engine.startListener(reqCtx)
+
+			server := rest.NewServer(httpAddr)
 			log.Printf("HTTP server listening on http://%s", httpAddr)
-			return engine.runServer()
+			return server.ListenAndServe()
 		},
 	}
-	cmd.Flags().String("addr", "localhost:8080", "HTTP listen address")
+	cmd.Flags().String("addr", defaultHTTPAddr, "HTTP listen address")
 	return cmd
 }

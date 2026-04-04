@@ -89,3 +89,18 @@ func BuildUsecases(cfg config.Config) (*Usecases, error) {
 	}
 	return usecases, nil
 }
+
+// LoadUsecases loads the runtime configuration and usecases for request handlers.
+// Parameters: w is the response writer used for emitting error responses.
+// Returns: the usecases, the loaded config, and a boolean indicating success.
+func LoadUsecases() (*Usecases, config.Config, error) {
+	cfg, err := config.Load()
+	if err != nil {
+		return nil, config.Config{}, err
+	}
+	usecases, err := BuildUsecases(cfg)
+	if err != nil {
+		return nil, config.Config{}, err
+	}
+	return usecases, cfg, nil
+}
