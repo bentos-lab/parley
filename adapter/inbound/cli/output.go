@@ -5,6 +5,7 @@ import "io"
 type DebateStreamOutput interface {
 	DebateHeader(writer io.Writer, summary DebateSummary, agents []AgentRow) error
 	DebateRound(writer io.Writer, roundNumber int, agentName string, message string, summary string, weakness string, newPoint string, rebuttal string) error
+	DebateSummary(writer io.Writer, summary DebateSummaryOutput) error
 	DebateResult(writer io.Writer, file string, id string) error
 }
 
@@ -37,6 +38,16 @@ type DebateSummary struct {
 	LLMProvider string `json:"-"`
 	LLMModel    string `json:"-"`
 	TTSModel    string `json:"-"`
+}
+
+type DebateSummaryDetail struct {
+	Agents     map[string][]string `json:"agents"`
+	Conclusion string              `json:"conclusion"`
+}
+
+type DebateSummaryOutput struct {
+	Summary DebateSummaryDetail `json:"summary"`
+	Agents  []AgentRow          `json:"agents"`
 }
 
 type DebateBasics struct {

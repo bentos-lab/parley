@@ -88,6 +88,25 @@ func Create(ctx context.Context, usecases *wiring.Usecases, output CreateOutput,
 			return err
 		}
 	}
+	if usecases.GenerateDebateSummary == nil {
+		return fmt.Errorf("summary generator is required")
+	}
+	summaryOutput, err := usecases.GenerateDebateSummary.Execute(ctx, core.GenerateDebateSummaryInput{
+		Filename: result.Filename,
+		ForceNew: true,
+	})
+	if err != nil {
+		return err
+	}
+	if err := output.DebateSummary(os.Stdout, DebateSummaryOutput{
+		Summary: DebateSummaryDetail{
+			Agents:     summaryOutput.Summary.Agents,
+			Conclusion: summaryOutput.Summary.Conclusion,
+		},
+		Agents: buildAgentRows(result.Debate.Agents),
+	}); err != nil {
+		return err
+	}
 	id := debate.IDFromFilename(result.Filename)
 	filePath, err := debate.FilePathFromFilename(result.Filename)
 	if err != nil {

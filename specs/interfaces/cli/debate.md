@@ -21,6 +21,7 @@ Behavior:
 - Generate the debate name and print it as muted text.
 - Generate the debate agents and print them in the same format as the existing agents table.
 - Print each generated round as a card with two bullets: `Voice` (formatted message) and `Summary` (plain text).
+- After rounds finish, generate the debate summary and print it, including the conclusion.
 - Save the debate to a file.
 - Run a loop for up to the specified number of rounds.
 - For each round, generate it automatically and save the debate.
@@ -41,6 +42,7 @@ Behavior:
 - Load the debate by converting the ID to the stored filename.
 - Print a debate header that includes the debate name, topic, identifier, and agent details.
 - Print each generated round as a card with two bullets: `Voice` (formatted message) and `Summary` (plain text).
+- After rounds finish, generate the debate summary and print it, including the conclusion.
 - Run a loop for up to the specified number of rounds.
 - For each round, generate it automatically and save the debate.
 

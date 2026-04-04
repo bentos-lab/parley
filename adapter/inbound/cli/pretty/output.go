@@ -117,6 +117,18 @@ func (o *Output) DebateRound(writer io.Writer, roundNumber int, agentName string
 	return nil
 }
 
+// DebateSummary renders the debate summary after rounds complete.
+// Parameters: writer is the output destination, summary is the summary payload with agents metadata.
+// Returns: an error if writing fails.
+func (o *Output) DebateSummary(writer io.Writer, summary cli.DebateSummaryOutput) error {
+	content := buildSummaryContent(summary)
+	card := HeaderCard("Summary", content)
+	if _, err := fmt.Fprintln(writer, card); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (o *Output) DebateResult(writer io.Writer, file string, id string) error {
 	bullets := []string{fmt.Sprintf("File: %s", file)}
 	if id != "" {
@@ -195,6 +207,28 @@ func formatBasicsHeader(summary cli.DebateBasics) string {
 		center.Render(mutedStyle.Render(fmt.Sprintf("Speaking: %s • %s", summary.TTSProvider, summary.TTSModel))),
 	}
 	return title + "\n" + strings.Join(lines, "\n")
+}
+
+// buildSummaryContent builds the summary card content for pretty output.
+// Parameters: summary is the summary payload with agents metadata.
+// Returns: the formatted summary content string.
+func buildSummaryContent(summary cli.DebateSummaryOutput) string {
+	sections := make([]string, 0, len(summary.Agents)+1)
+	for _, agent := range summary.Agents {
+		points := summary.Summary.Agents[agent.ID]
+		if len(points) == 0 {
+			points = []string{"(no points)"}
+		}
+		header := fmt.Sprintf("%s (%s)", agent.Name, agent.Stance)
+		section := titleStyle.Render(header) + "\n" + BulletList(points)
+		sections = append(sections, section)
+	}
+	conclusion := summary.Summary.Conclusion
+	if conclusion == "" {
+		conclusion = "(none)"
+	}
+	sections = append(sections, fmt.Sprintf("%s %s", titleStyle.Render("Conclusion:"), conclusion))
+	return strings.Join(sections, "\n\n")
 }
 
 // AgentsTable renders a table for debate agents.

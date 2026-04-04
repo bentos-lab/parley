@@ -81,6 +81,20 @@ func (o *Output) DebateRound(writer io.Writer, roundNumber int, agentName string
 	return encodeLine(writer, "round", data)
 }
 
+// DebateSummary emits the debate summary output.
+// Parameters: writer is the output destination, summary is the summary payload with agents metadata.
+// Returns: an error if writing fails.
+func (o *Output) DebateSummary(writer io.Writer, summary cli.DebateSummaryOutput) error {
+	data := struct {
+		Summary cli.DebateSummaryDetail `json:"summary"`
+		Agents  []cli.AgentRow          `json:"agents"`
+	}{
+		Summary: summary.Summary,
+		Agents:  summary.Agents,
+	}
+	return encodeLine(writer, "debate_summary", data)
+}
+
 func (o *Output) DebateResult(writer io.Writer, file string, id string) error {
 	data := struct {
 		File string `json:"file"`

@@ -58,7 +58,7 @@ Request:
 
 Response:
 
-- Full debate payload, including rounds with `agent_id`, `message`, `weakness`, `new_point`, `rebuttal`, and `summary`.
+- Full debate payload, including `summary` and rounds with `agent_id`, `message`, `weakness`, `new_point`, `rebuttal`, and `summary`.
 
 Procedure:
 
@@ -81,6 +81,26 @@ Response:
 Procedure:
 
 - Overwrite the file for the id by appending `.json` to form the filename.
+
+## `GET /api/debates/{id}/summary`
+
+Description: Fetches the debate summary for a saved debate by id.
+
+Request:
+
+- Query `new=true` to force regenerating the summary.
+
+Response:
+
+- `agents`: Map of `agent_id` to list of summary points.
+- `conclusion`: Final debate conclusion.
+
+Procedure:
+
+- Load the debate from the id by appending `.json`.
+- If the debate has no rounds, return an error.
+- If the debate already has a summary and `new` is not set, return the stored summary.
+- Otherwise, generate a new summary with the LLM, persist it, and return it.
 
 ## `DELETE /api/debates/{id}`
 

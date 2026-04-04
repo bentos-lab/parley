@@ -12,6 +12,8 @@ A debate stores information about a single debate session.
 - If an agent `id` is missing, it is auto-generated in order as `agent-1`, `agent-2`, and so on.
 - `Rounds`: Ordered list of debate rounds.
 - `Round` fields: `agent_id` (empty means the user, not an agent), `message` (round content), `weakness`, `new_point`, `rebuttal`, `summary`.
+- `Summary`: Debate summary generated after rounds complete.
+- `Summary` fields: `agents` (map of `agent_id` to list of summary points), `conclusion` (final conclusion).
 - `TTSProvider`: Preferred TTS provider for the debate.
 
 ## Features
