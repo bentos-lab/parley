@@ -23,7 +23,6 @@ require (
 	go.mau.fi/util v0.9.6
 	golang.org/x/sync v0.19.0
 	google.golang.org/protobuf v1.36.11
-	rsc.io/qr v0.2.0
 )
 
 require (
@@ -69,4 +68,5 @@ require (
 	golang.org/x/text v0.34.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	rsc.io/qr v0.2.0 // indirect
 )
