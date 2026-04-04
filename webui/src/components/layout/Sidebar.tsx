@@ -193,6 +193,43 @@ export function Sidebar({ debates, sidebarError, collapsed = false, onToggle }: 
                         </svg>
                         {!collapsed && 'Settings'}
                     </NavLink>
+                    <NavLink
+                        to='/integrations/whatsapp'
+                        title={collapsed ? 'WhatsApp' : undefined}
+                        className={({ isActive }) =>
+                            [
+                                'flex items-center rounded-[5px] transition-colors cursor-pointer',
+                                collapsed
+                                    ? 'justify-center w-10 h-10 mx-auto my-1'
+                                    : 'gap-2 px-3.5 py-[7px] mx-0 text-xs',
+                                isActive
+                                    ? 'bg-bg-elevated text-text-1'
+                                    : 'text-text-2 hover:bg-bg-hover hover:text-text-1',
+                            ].join(' ')
+                        }
+                    >
+                        <svg
+                            className={`shrink-0 ${collapsed ? 'w-4.5 h-4.5' : 'w-3.5 h-3.5 opacity-60'}`}
+                            viewBox='0 0 24 24'
+                            fill='none'
+                            aria-hidden='true'
+                        >
+                            <path
+                                d='M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347'
+                                stroke='currentColor'
+                                strokeWidth='1.2'
+                                strokeLinecap='round'
+                                strokeLinejoin='round'
+                            />
+                            <path
+                                d='M12.045 21.794h-.005a11.882 11.882 0 0 1-5.683-1.448L.057 24l1.688-6.163a11.861 11.861 0 0 1-1.588-5.945C.16 5.335 5.495 0 12.05 0a11.821 11.821 0 0 1 8.413 3.488 11.821 11.821 0 0 1 3.48 8.413c-.003 6.558-5.339 11.893-11.893 11.893Z'
+                                stroke='currentColor'
+                                strokeWidth='1.2'
+                                strokeLinejoin='round'
+                            />
+                        </svg>
+                        {!collapsed && 'WhatsApp'}
+                    </NavLink>
                 </nav>
 
                 {/* Saved debates — hidden when collapsed */}

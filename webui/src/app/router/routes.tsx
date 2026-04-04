@@ -44,6 +44,10 @@ export const routes: RouteObject[] = [
                 path: 'settings',
                 lazy: () => import('@/routes/settings/route'),
             },
+            {
+                path: 'integrations/whatsapp',
+                lazy: () => import('@/routes/integrations/whatsapp/route'),
+            },
         ],
     },
 ];
