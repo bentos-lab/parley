@@ -1,0 +1,8 @@
+[autogen]
+enabled = false
+
+[overview.issue_alignment]
+enabled = false
+
+[replycomment]
+enabled = true
