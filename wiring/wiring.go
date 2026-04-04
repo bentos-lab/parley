@@ -10,19 +10,20 @@ import (
 
 // Usecases bundles all debate usecases.
 type Usecases struct {
-	CreateDebate         *core.CreateDebateUsecase
-	GenerateDebateName   *core.GenerateDebateNameUsecase
-	GenerateDebateAgents *core.GenerateAgentsUsecase
-	AssignDebateVoices   *core.AssignDebateVoicesUsecase
-	LoadDebate           *core.LoadDebateUsecase
-	ListDebates          *core.ListDebatesUsecase
-	UpdateDebate         *core.UpdateDebateUsecase
-	DeleteDebate         *core.DeleteDebateUsecase
-	CreateRound          *core.CreateRoundUsecase
-	GenerateAudio        *core.GenerateAudioUsecase
-	GetRoundAudio        *core.GetRoundAudioUsecase
-	GetDebateAudio       *core.GetDebateAudioUsecase
-	ParseParleyCommand   *core.ParseParleyCommandUsecase
+	CreateDebate          *core.CreateDebateUsecase
+	GenerateDebateName    *core.GenerateDebateNameUsecase
+	GenerateDebateAgents  *core.GenerateAgentsUsecase
+	GenerateDebateSummary *core.GenerateDebateSummaryUsecase
+	AssignDebateVoices    *core.AssignDebateVoicesUsecase
+	LoadDebate            *core.LoadDebateUsecase
+	ListDebates           *core.ListDebatesUsecase
+	UpdateDebate          *core.UpdateDebateUsecase
+	DeleteDebate          *core.DeleteDebateUsecase
+	CreateRound           *core.CreateRoundUsecase
+	GenerateAudio         *core.GenerateAudioUsecase
+	GetRoundAudio         *core.GetRoundAudioUsecase
+	GetDebateAudio        *core.GetDebateAudioUsecase
+	ParseParleyCommand    *core.ParseParleyCommandUsecase
 }
 
 // BuildUsecases constructs the debate usecases with outbound adapters.
@@ -49,6 +50,11 @@ func BuildUsecases(cfg config.Config) (*Usecases, error) {
 			Model:       cfg.OpenAI.Model,
 		},
 		GenerateDebateAgents: &core.GenerateAgentsUsecase{
+			LLMResolver: llmResolver,
+			LLMProvider: cfg.LLMProvider,
+			Model:       cfg.OpenAI.Model,
+		},
+		GenerateDebateSummary: &core.GenerateDebateSummaryUsecase{
 			LLMResolver: llmResolver,
 			LLMProvider: cfg.LLMProvider,
 			Model:       cfg.OpenAI.Model,

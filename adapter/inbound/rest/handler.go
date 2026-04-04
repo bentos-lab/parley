@@ -22,6 +22,7 @@ type Handler struct {
 	checkWhatsAppSession  func(context.Context) (bool, error)
 	removeWhatsAppSession func() error
 	connectWhatsApp       func(context.Context) (whatsmeow.QRChannelItem, func(context.Context) error, func(context.Context) error, error)
+	loadUsecasesHook      func(http.ResponseWriter) (*wiring.Usecases, config.Config, bool)
 }
 
 // HandlerOption configures optional handler behavior used in tests.
@@ -74,6 +75,15 @@ func WithConnectWhatsApp(fn func(context.Context) (whatsmeow.QRChannelItem, func
 	}
 }
 
+// WithUsecasesLoader installs a custom usecase loader hook for testing.
+// Parameters: fn is the loader function.
+// Returns: the option for chaining.
+func WithUsecasesLoader(fn func(http.ResponseWriter) (*wiring.Usecases, config.Config, bool)) HandlerOption {
+	return func(h *Handler) {
+		h.loadUsecasesHook = fn
+	}
+}
+
 // NewHandler creates a new HTTP handler instance.
 // Parameters: options override handler dependencies for testing.
 // Returns: a configured handler instance.
@@ -104,6 +114,7 @@ func (h *Handler) Routes(router chi.Router) {
 	router.Post("/debates", h.createDebate)
 	router.Get("/debates", h.listDebates)
 	router.Get("/debates/{id}", h.getDebate)
+	router.Get("/debates/{id}/summary", h.getDebateSummary)
 	router.Put("/debates/{id}", h.updateDebate)
 	router.Delete("/debates/{id}", h.deleteDebate)
 	router.Post("/debates/{id}/rounds", h.createRound)
@@ -117,6 +128,10 @@ func (h *Handler) Routes(router chi.Router) {
 // Parameters: w is the response writer used for emitting error responses.
 // Returns: the usecases, the loaded config, and a boolean indicating success.
 func (h *Handler) loadUsecases(w http.ResponseWriter) (*wiring.Usecases, config.Config, bool) {
+	if h.loadUsecasesHook != nil {
+		return h.loadUsecasesHook(w)
+	}
+
 	usecases, cfg, err := wiring.LoadUsecases()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())

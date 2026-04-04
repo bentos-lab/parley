@@ -19,12 +19,13 @@ import (
 
 // Debate stores information about a single debate session.
 type Debate struct {
-	Name           string        `json:"name"`
-	NormalizedName string        `json:"normalized_name"`
-	Topic          string        `json:"topic"`
-	Agents         []DebateAgent `json:"agents"`
-	Rounds         []DebateRound `json:"rounds"`
-	TTSProvider    string        `json:"tts_provider"`
+	Name           string               `json:"name"`
+	NormalizedName string               `json:"normalized_name"`
+	Topic          string               `json:"topic"`
+	Agents         []DebateAgent        `json:"agents"`
+	Rounds         []DebateRound        `json:"rounds"`
+	Summary        *DebateSummaryDetail `json:"summary,omitempty"`
+	TTSProvider    string               `json:"tts_provider"`
 }
 
 // DebateAgent represents a participant in the debate.
@@ -43,6 +44,12 @@ type DebateRound struct {
 	NewPoint string `json:"new_point"`
 	Rebuttal string `json:"rebuttal"`
 	Summary  string `json:"summary"`
+}
+
+// DebateSummaryDetail stores the LLM-generated summary for a debate.
+type DebateSummaryDetail struct {
+	Agents     map[string][]string `json:"agents"`
+	Conclusion string              `json:"conclusion"`
 }
 
 // DebateSummary stores the minimal information for listing debates.
@@ -126,6 +133,12 @@ func (d *Debate) FindAgent(agentID string) (DebateAgent, error) {
 // FormatHistoryPrompt renders the debate history as a single user prompt.
 func (d *Debate) FormatHistoryPrompt() string {
 	return d.formatHistoryPrompt()
+}
+
+// FormatTranscript renders the debate history as a transcript without turn guidance.
+// Returns: the formatted transcript, or an empty string when no rounds exist.
+func (d *Debate) FormatTranscript() string {
+	return d.formatTranscript()
 }
 
 // OtherAgentNames returns the names of all other agents for the provided ID.
@@ -328,6 +341,25 @@ func (d *Debate) formatHistoryPrompt() string {
 			"future rounds."
 	}
 	return fmt.Sprintf("%s\nThis is your turn to speak.", history.String())
+}
+
+// formatTranscript renders the debate history as a transcript without turn guidance.
+// Returns: the formatted transcript, or an empty string when no rounds exist.
+func (d *Debate) formatTranscript() string {
+	var history strings.Builder
+	for _, round := range d.Rounds {
+		name := round.AgentID
+		if round.AgentID != "" {
+			if agent, err := d.findAgent(round.AgentID); err == nil && agent.Name != "" {
+				name = agent.Name
+			}
+		}
+		if history.Len() > 0 {
+			history.WriteString("\n")
+		}
+		fmt.Fprintf(&history, "%s: %s", name, round.Message)
+	}
+	return history.String()
 }
 
 const (

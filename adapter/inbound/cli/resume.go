@@ -42,6 +42,25 @@ func Resume(ctx context.Context, usecases *wiring.Usecases, output ResumeOutput,
 			return err
 		}
 	}
+	if usecases.GenerateDebateSummary == nil {
+		return fmt.Errorf("summary generator is required")
+	}
+	summaryOutput, err := usecases.GenerateDebateSummary.Execute(ctx, core.GenerateDebateSummaryInput{
+		Filename: filename,
+		ForceNew: true,
+	})
+	if err != nil {
+		return err
+	}
+	if err := output.DebateSummary(os.Stdout, DebateSummaryOutput{
+		Summary: DebateSummaryDetail{
+			Agents:     summaryOutput.Summary.Agents,
+			Conclusion: summaryOutput.Summary.Conclusion,
+		},
+		Agents: buildAgentRows(loadOutput.Debate.Agents),
+	}); err != nil {
+		return err
+	}
 	filePath, err := debate.FilePathFromFilename(filename)
 	if err != nil {
 		return err
