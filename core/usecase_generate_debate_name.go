@@ -10,9 +10,7 @@ import (
 
 // GenerateDebateNameInput defines inputs for generating a debate name.
 type GenerateDebateNameInput struct {
-	Topic       string
-	LLMProvider string
-	LLMModel    string
+	Topic string
 }
 
 // GenerateDebateNameOutput is the result of a debate name generation.
@@ -41,7 +39,7 @@ func (u *GenerateDebateNameUsecase) Execute(ctx context.Context, input GenerateD
 	if u.LLMResolver == nil {
 		return GenerateDebateNameOutput{}, fmt.Errorf("llm resolver is required")
 	}
-	provider, model, err := ResolveLLMSelection(input.LLMProvider, input.LLMModel, "", "", u.Defaults)
+	provider, model, err := ResolveEffectiveLLMSelection(ctx, "", "", u.Defaults)
 	if err != nil {
 		return GenerateDebateNameOutput{}, err
 	}

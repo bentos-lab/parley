@@ -197,27 +197,12 @@ func (l *Listener) handleCreate(ctx context.Context, chat types.JID, cmd core.Pa
 	if topic == "" {
 		return "[parley] Please provide a topic to start the debate."
 	}
-	defaults := core.LLMDefaults{
-		Provider:       cfg.LLMProvider,
-		OpenAIModel:    cfg.OpenAI.Model,
-		AnthropicModel: cfg.Anthropic.Model,
-		GeminiModel:    cfg.Gemini.Model,
-	}
-	llmProvider, llmModel, err := core.ResolveLLMSelection("", "", "", "", defaults)
-	if err != nil {
-		l.logError("resolve llm selection", err)
-		return "[parley] Unable to start the debate right now."
-	}
-	nameOutput, err := usecases.GenerateDebateName.Execute(ctx, core.GenerateDebateNameInput{
-		Topic:       topic,
-		LLMProvider: llmProvider,
-		LLMModel:    llmModel,
-	})
+	nameOutput, err := usecases.GenerateDebateName.Execute(ctx, core.GenerateDebateNameInput{Topic: topic})
 	if err != nil {
 		l.logError("generate debate name", err)
 		return "[parley] Unable to start the debate right now."
 	}
-	agents, err := l.buildAgents(ctx, cmd, llmProvider, llmModel)
+	agents, err := l.buildAgents(ctx, cmd)
 	if err != nil {
 		l.logError("build agents", err)
 		return "[parley] Unable to start the debate right now."
@@ -225,8 +210,6 @@ func (l *Listener) handleCreate(ctx context.Context, chat types.JID, cmd core.Pa
 	voicesOutput, err := usecases.AssignDebateVoices.Execute(ctx, core.AssignDebateVoicesInput{
 		Agents:      agents,
 		TTSProvider: cfg.TTSProvider,
-		LLMProvider: llmProvider,
-		LLMModel:    llmModel,
 	})
 	if err != nil {
 		l.logError("assign voices", err)
@@ -237,8 +220,6 @@ func (l *Listener) handleCreate(ctx context.Context, chat types.JID, cmd core.Pa
 		Topic:       topic,
 		Agents:      voicesOutput.Agents,
 		TTSProvider: cfg.TTSProvider,
-		LLMProvider: llmProvider,
-		LLMModel:    llmModel,
 	})
 	if err != nil {
 		l.logError("create debate", err)
@@ -247,7 +228,7 @@ func (l *Listener) handleCreate(ctx context.Context, chat types.JID, cmd core.Pa
 	filename := createOutput.Filename
 	id := debate.IDFromFilename(filename)
 	for i := 0; i < cmd.NumRounds; i++ {
-		if _, err := usecases.CreateRound.Execute(ctx, core.CreateRoundInput{Filename: filename, LLMProvider: llmProvider, LLMModel: llmModel}); err != nil {
+		if _, err := usecases.CreateRound.Execute(ctx, core.CreateRoundInput{Filename: filename}); err != nil {
 			l.logError(fmt.Sprintf("create round %d for debate %s", i+1, id), err)
 			return "[parley] Unable to complete the debate rounds right now."
 		}
@@ -276,7 +257,7 @@ func (l *Listener) handleResume(ctx context.Context, chat types.JID, cmd core.Pa
 		return "[parley] Unable to resume the debate right now."
 	}
 	for i := 0; i < cmd.NumRounds; i++ {
-		if _, err := usecases.CreateRound.Execute(ctx, core.CreateRoundInput{Filename: filename, LLMProvider: "", LLMModel: ""}); err != nil {
+		if _, err := usecases.CreateRound.Execute(ctx, core.CreateRoundInput{Filename: filename}); err != nil {
 			l.logError(fmt.Sprintf("create round %d for debate %s", i+1, cmd.DebateID), err)
 			return "[parley] Unable to resume the debate right now."
 		}
@@ -346,7 +327,7 @@ func (l *Listener) handleAudio(ctx context.Context, chat types.JID, cmd core.Par
 // buildAgents returns explicitly configured agents or generates them as needed.
 // Parameters: ctx is the calling context, cmd captures the command details (topic, agent hints, count).
 // Returns: resolved agent list or an error.
-func (l *Listener) buildAgents(ctx context.Context, cmd core.ParleyCommand, llmProvider string, llmModel string) ([]debate.DebateAgent, error) {
+func (l *Listener) buildAgents(ctx context.Context, cmd core.ParleyCommand) ([]debate.DebateAgent, error) {
 	usecases, _, err := wiring.LoadUsecases()
 	if err != nil {
 		return nil, fmt.Errorf("load usecase: %w", err)
@@ -363,10 +344,8 @@ func (l *Listener) buildAgents(ctx context.Context, cmd core.ParleyCommand, llmP
 		cmd.NumAgents = defaultNumAgents
 	}
 	agentsOutput, err := usecases.GenerateDebateAgents.Execute(ctx, core.GenerateAgentsInput{
-		Topic:       cmd.Topic,
-		Count:       cmd.NumAgents,
-		LLMProvider: llmProvider,
-		LLMModel:    llmModel,
+		Topic: cmd.Topic,
+		Count: cmd.NumAgents,
 	})
 	if err != nil {
 		return nil, err

@@ -14,7 +14,7 @@ const (
 	// summaryLLMTemperature sets the fixed sampling temperature for summary generation.
 	summaryLLMTemperature = 0.3
 	// summaryLLMMaxTokens sets the fixed max token budget for summary generation.
-	summaryLLMMaxTokens = 2048
+	summaryLLMMaxTokens = 16000
 )
 
 // GenerateDebateSummaryInput defines inputs for generating a debate summary.
@@ -31,8 +31,7 @@ type GenerateDebateSummaryOutput struct {
 // GenerateDebateSummaryUsecase generates and stores a debate summary using an LLM.
 type GenerateDebateSummaryUsecase struct {
 	LLMResolver contract.LLMResolver
-	LLMProvider string
-	Model       string
+	Defaults    LLMDefaults
 }
 
 // Execute generates a debate summary and persists it to storage.
@@ -55,10 +54,11 @@ func (u *GenerateDebateSummaryUsecase) Execute(ctx context.Context, input Genera
 	if u.LLMResolver == nil {
 		return GenerateDebateSummaryOutput{}, fmt.Errorf("llm resolver is required")
 	}
-	if u.LLMProvider == "" {
-		return GenerateDebateSummaryOutput{}, fmt.Errorf("llm_provider is required")
+	provider, model, err := ResolveEffectiveLLMSelection(ctx, debateItem.LLMProvider, debateItem.LLMModel, u.Defaults)
+	if err != nil {
+		return GenerateDebateSummaryOutput{}, err
 	}
-	llm, err := u.LLMResolver.Resolve(u.LLMProvider, u.Model)
+	llm, err := u.LLMResolver.Resolve(provider, model)
 	if err != nil {
 		return GenerateDebateSummaryOutput{}, err
 	}
@@ -81,7 +81,6 @@ func (u *GenerateDebateSummaryUsecase) Execute(ctx context.Context, input Genera
 			SystemInstruction: systemPrompt,
 			Messages:          []contract.LLMMessage{{Role: "user", Content: transcript}},
 			Temperature:       summaryLLMTemperature,
-			Model:             u.Model,
 			MaxTokens:         summaryLLMMaxTokens,
 		}, summaryAgentPointsResponseSchema())
 		if err != nil {
@@ -108,7 +107,6 @@ func (u *GenerateDebateSummaryUsecase) Execute(ctx context.Context, input Genera
 		SystemInstruction: conclusionPrompt,
 		Messages:          []contract.LLMMessage{{Role: "user", Content: conclusionTranscript}},
 		Temperature:       summaryLLMTemperature,
-		Model:             u.Model,
 		MaxTokens:         summaryLLMMaxTokens,
 	}, summaryConclusionResponseSchema())
 	if err != nil {

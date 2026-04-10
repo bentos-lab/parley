@@ -47,11 +47,7 @@ func (h *Handler) streamRounds(w http.ResponseWriter, r *http.Request) {
 			return
 		default:
 		}
-		output, err := usecases.CreateRound.Execute(r.Context(), core.CreateRoundInput{
-			Filename:    filename,
-			LLMProvider: "",
-			LLMModel:    "",
-		})
+		output, err := usecases.CreateRound.Execute(r.Context(), core.CreateRoundInput{Filename: filename})
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return

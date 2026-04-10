@@ -38,8 +38,10 @@ func TestGenerateDebateSummaryCreatesSummary(t *testing.T) {
 		LLMResolver: contract.LLMResolverFunc(func(provider string, model string) (contract.LLM, error) {
 			return llm, nil
 		}),
-		LLMProvider: "test",
-		Model:       "model",
+		Defaults: LLMDefaults{
+			Provider:    "openai",
+			OpenAIModel: "model",
+		},
 	}
 	output, err := usecase.Execute(context.Background(), GenerateDebateSummaryInput{Filename: filename})
 	require.NoError(t, err)
@@ -116,8 +118,10 @@ func TestGenerateDebateSummaryForceNewRegenerates(t *testing.T) {
 		LLMResolver: contract.LLMResolverFunc(func(provider string, model string) (contract.LLM, error) {
 			return llm, nil
 		}),
-		LLMProvider: "test",
-		Model:       "model",
+		Defaults: LLMDefaults{
+			Provider:    "openai",
+			OpenAIModel: "model",
+		},
 	}
 	output, err := usecase.Execute(context.Background(), GenerateDebateSummaryInput{
 		Filename: filename,
@@ -180,8 +184,10 @@ func TestGenerateDebateSummarySplitsPerAgentAndConclusion(t *testing.T) {
 		LLMResolver: contract.LLMResolverFunc(func(provider string, model string) (contract.LLM, error) {
 			return llm, nil
 		}),
-		LLMProvider: "test",
-		Model:       "model",
+		Defaults: LLMDefaults{
+			Provider:    "openai",
+			OpenAIModel: "model",
+		},
 	}
 
 	output, err := usecase.Execute(context.Background(), GenerateDebateSummaryInput{Filename: filename})
@@ -205,4 +211,53 @@ func TestGenerateDebateSummarySplitsPerAgentAndConclusion(t *testing.T) {
 	require.Contains(t, conclusionTranscript, "Alex: Agent 1 message")
 	require.Contains(t, conclusionTranscript, "User: User message")
 	require.Contains(t, conclusionTranscript, "Blake: Agent 2 message")
+}
+
+// TestGenerateDebateSummaryUsesStoredSelection verifies stored debate selection is used when no inbound override exists.
+// Parameters: t provides the test context.
+func TestGenerateDebateSummaryUsesStoredSelection(t *testing.T) {
+	tempHome := t.TempDir()
+	t.Setenv("HOME", tempHome)
+
+	debateItem := &debate.Debate{
+		Name:        "Alpha",
+		Topic:       "Topic A",
+		LLMProvider: "anthropic",
+		LLMModel:    "stored-model",
+		Agents: []debate.DebateAgent{
+			{ID: "agent-1", Name: "Alex", Stance: "pro"},
+		},
+		Rounds: []debate.DebateRound{
+			{AgentID: "agent-1", Message: "Round 1"},
+		},
+	}
+	filename := "alpha.2026-03-31-22-34-54.json"
+	require.NoError(t, debateItem.SaveAs(filename))
+
+	llm := &stubLLM{
+		jsonResponses: []string{
+			`{"points":["Point A"]}`,
+			`{"final_conclusion":"Conclusion A"}`,
+		},
+	}
+	resolvedProvider := ""
+	resolvedModel := ""
+	usecase := &GenerateDebateSummaryUsecase{
+		LLMResolver: contract.LLMResolverFunc(func(provider string, model string) (contract.LLM, error) {
+			resolvedProvider = provider
+			resolvedModel = model
+			return llm, nil
+		}),
+		Defaults: LLMDefaults{
+			Provider:       "openai",
+			OpenAIModel:    "default-openai-model",
+			AnthropicModel: "default-anthropic-model",
+			GeminiModel:    "default-gemini-model",
+		},
+	}
+
+	_, err := usecase.Execute(context.Background(), GenerateDebateSummaryInput{Filename: filename})
+	require.NoError(t, err)
+	require.Equal(t, "anthropic", resolvedProvider)
+	require.Equal(t, "stored-model", resolvedModel)
 }

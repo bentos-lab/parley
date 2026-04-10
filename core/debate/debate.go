@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -369,8 +370,10 @@ func (d *Debate) formatTranscript() string {
 }
 
 const (
-	debatesDirName = ".bentos/parley"
-	fileTimeFormat = "2006-01-02-15-04-05"
+	debatesDirName          = ".bentos/parley"
+	fileTimeFormat          = "2006-01-02-15-04-05"
+	fileTimeFormatNoSeconds = "2006-01-02-15-04"
+	fileDateFormat          = "2006-01-02"
 	// defaultNormalizedName is used when a debate name has no valid characters.
 	defaultNormalizedName = "debate"
 )
@@ -576,17 +579,30 @@ func FilePathFromFilename(filename string) (string, error) {
 // Parameters: filename is the debate file name to parse.
 // Returns: the parsed timestamp and a boolean indicating whether it was found.
 func parseDebateTimestamp(filename string) (time.Time, bool) {
-	trimmed := strings.TrimSuffix(filename, ".json")
-	lastDot := strings.LastIndex(trimmed, ".")
-	if lastDot == -1 || lastDot == len(trimmed)-1 {
+	id := strings.TrimSuffix(filename, ".json")
+	return parseDebateTimestampFromID(id)
+}
+
+var debateTimestampPattern = regexp.MustCompile(`\d{4}-\d{2}-\d{2}(?:-\d{2}-\d{2}(?:-\d{2})?)?`)
+
+// parseDebateTimestampFromID extracts the timestamp embedded in a debate identifier.
+// Parameters: id is the debate identifier to parse (without the .json suffix).
+// Returns: the parsed timestamp and a boolean indicating whether it was found.
+func parseDebateTimestampFromID(id string) (time.Time, bool) {
+	matches := debateTimestampPattern.FindAllString(id, -1)
+	if len(matches) == 0 {
 		return time.Time{}, false
 	}
-	segment := trimmed[lastDot+1:]
-	parsed, err := time.Parse(fileTimeFormat, segment)
-	if err != nil {
-		return time.Time{}, false
+
+	segment := matches[len(matches)-1]
+	for _, layout := range []string{fileTimeFormat, fileTimeFormatNoSeconds, fileDateFormat} {
+		parsed, err := time.Parse(layout, segment)
+		if err == nil {
+			return parsed, true
+		}
 	}
-	return parsed, true
+
+	return time.Time{}, false
 }
 
 // writeDebate writes debate data to disk with formatted JSON.

@@ -12,8 +12,8 @@ Request:
 - `topic`: Debate topic.
 - `agents` or `num_agents`: Mutually exclusive inputs.
 - `tts_provider`: Optional TTS provider override for this debate (default: config `tts.provider`, which is `native` when unset).
-- `llm_provider`: Optional LLM provider override for this debate (default: config `llm.provider`).
-- `llm_model`: Optional LLM model override for this debate (default: provider-specific config model).
+- `llm_provider`: Optional LLM provider override for this debate.
+- `llm_model`: Optional LLM model override for this debate.
 - `agent_voices`: Optional map of `agent_id` to `voice_name` (validated against the provider).
 
 Response:
@@ -27,6 +27,7 @@ Procedure:
 - If any agent `id` values are missing, assign `agent-<n>` identifiers in order.
 - If `agent_voices` is provided, verify all voices exist in the selected provider.
 - Persist `tts_provider`, `llm_provider`, `llm_model`, and any provided `voice_name` values in the debate.
+- LLM provider/model resolution order is: request override, stored debate values, config file, environment, then built-in defaults.
 - Save the debate to a file.
 - The `id` must follow this format: `{normalized-name}.{yyyy-mm-dd-hh-mm-ss}`.
 - The `normalized-name` contains only lowercase letters (`a-z`) and digits (`0-9`).

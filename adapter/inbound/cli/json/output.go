@@ -117,6 +117,13 @@ func (o *Output) ListDebates(writer io.Writer, ids []string) error {
 	return encodeLine(writer, "debate_list", data)
 }
 
+// DebateDetails emits full debate details for the get command.
+// Parameters: writer is the output destination, details is the full debate payload.
+// Returns: an error if writing fails.
+func (o *Output) DebateDetails(writer io.Writer, details cli.DebateDetailsOutput) error {
+	return encodeLine(writer, "debate_get", details)
+}
+
 func (o *Output) InstallGuide(writer io.Writer, title string, guide string) error {
 	data := struct {
 		Title string `json:"title"`

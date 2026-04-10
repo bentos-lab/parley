@@ -127,3 +127,44 @@ func TestGenerateRoundAllowsEmptyRebuttalFields(t *testing.T) {
 	require.Equal(t, "Opening response", round.Message)
 	require.Equal(t, "Opening summary.", round.Summary)
 }
+
+// TestGenerateRoundUsesContextSelection verifies inbound context overrides debate-stored LLM selection.
+// Parameters: t provides the test context.
+func TestGenerateRoundUsesContextSelection(t *testing.T) {
+	tempHome := t.TempDir()
+	t.Setenv("HOME", tempHome)
+	debateItem := &debate.Debate{
+		Name:        "Sample Debate",
+		Topic:       "Testing topic",
+		LLMProvider: "anthropic",
+		LLMModel:    "stored-model",
+		Agents: []debate.DebateAgent{
+			{ID: "a1", Name: "Alex", Stance: "pro"},
+		},
+	}
+	filename := "alpha.2026-03-31-22-34-54.json"
+	require.NoError(t, debateItem.SaveAs(filename))
+	llm := &stubLLM{
+		jsonResponse: `{"weakness":"Weak point","new_point":"New point with evidence","rebuttal":"You said \"X\"","final_speak":"Final response text","summary":"Short summary."}`,
+	}
+	resolvedProvider := ""
+	resolvedModel := ""
+	usecase := &CreateRoundUsecase{
+		LLMResolver: contract.LLMResolverFunc(func(provider string, model string) (contract.LLM, error) {
+			resolvedProvider = provider
+			resolvedModel = model
+			return llm, nil
+		}),
+		Defaults: LLMDefaults{
+			Provider:       "openai",
+			OpenAIModel:    "default-openai-model",
+			AnthropicModel: "default-anthropic-model",
+			GeminiModel:    "default-gemini-model",
+		},
+	}
+	ctx := WithLLMSelection(context.Background(), "gemini", "ctx-model")
+	_, err := usecase.Execute(ctx, CreateRoundInput{Filename: filename})
+	require.NoError(t, err)
+	require.Equal(t, "gemini", resolvedProvider)
+	require.Equal(t, "ctx-model", resolvedModel)
+}

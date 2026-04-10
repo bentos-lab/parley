@@ -26,12 +26,12 @@ type LLMDefaults struct {
 // - model: resolved model string.
 // - error: non-nil when the provider is missing/unsupported or model is required but empty.
 func ResolveLLMSelection(inputProvider string, inputModel string, storedProvider string, storedModel string, defaults LLMDefaults) (provider string, model string, err error) {
-	provider = strings.TrimSpace(inputProvider)
+	provider = strings.ToLower(strings.TrimSpace(inputProvider))
 	if provider == "" {
-		provider = strings.TrimSpace(storedProvider)
+		provider = strings.ToLower(strings.TrimSpace(storedProvider))
 	}
 	if provider == "" {
-		provider = strings.TrimSpace(defaults.Provider)
+		provider = strings.ToLower(strings.TrimSpace(defaults.Provider))
 	}
 	if provider == "" {
 		return "", "", fmt.Errorf("llm provider is required")
@@ -48,6 +48,21 @@ func ResolveLLMSelection(inputProvider string, inputModel string, storedProvider
 		return "", "", fmt.Errorf("llm model is required for provider %q", provider)
 	}
 	return provider, model, nil
+}
+
+// ResolveEffectiveLLMSelection resolves provider/model using context overrides, stored values, and defaults.
+// Parameters:
+// - ctx: context that may contain inbound LLM overrides.
+// - storedProvider: provider stored in debate state.
+// - storedModel: model stored in debate state.
+// - defaults: application defaults used as fallback.
+// Returns:
+// - provider: resolved provider string.
+// - model: resolved model string.
+// - error: non-nil when selection is invalid.
+func ResolveEffectiveLLMSelection(ctx context.Context, storedProvider string, storedModel string, defaults LLMDefaults) (provider string, model string, err error) {
+	overrideProvider, overrideModel := LLMSelectionFromContext(ctx)
+	return ResolveLLMSelection(overrideProvider, overrideModel, storedProvider, storedModel, defaults)
 }
 
 // defaultModelForProvider selects the default model for a provider.

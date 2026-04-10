@@ -27,6 +27,15 @@ type ListOutput interface {
 	ListDebates(writer io.Writer, ids []string) error
 }
 
+// GetOutput renders full debate details loaded by debate ID.
+type GetOutput interface {
+	// DebateDetails renders full debate information including header, topic, name,
+	// agents, rounds, and summary.
+	// Parameters: writer is the output destination, details is the full debate payload.
+	// Returns: an error if writing fails.
+	DebateDetails(writer io.Writer, details DebateDetailsOutput) error
+}
+
 type DebateSummary struct {
 	Name        string `json:"name"`
 	Topic       string `json:"topic"`
@@ -65,4 +74,37 @@ type AgentRow struct {
 	Name   string
 	Stance string
 	Voice  string
+}
+
+// DebateHeaderOutput stores header information shown in get command output.
+type DebateHeaderOutput struct {
+	ID          string `json:"id"`
+	AppName     string `json:"app_name"`
+	LLMProvider string `json:"llm_provider"`
+	LLMModel    string `json:"llm_model"`
+	TTSProvider string `json:"tts_provider"`
+	TTSModel    string `json:"tts_model"`
+	AgentsCount int    `json:"agents_count"`
+}
+
+// DebateRoundOutput stores one debate round in get command output.
+type DebateRoundOutput struct {
+	Number    int    `json:"number"`
+	AgentID   string `json:"agent_id"`
+	AgentName string `json:"agent_name"`
+	Message   string `json:"message"`
+	Summary   string `json:"summary"`
+	Weakness  string `json:"weakness"`
+	NewPoint  string `json:"new_point"`
+	Rebuttal  string `json:"rebuttal"`
+}
+
+// DebateDetailsOutput stores full debate info for get command output.
+type DebateDetailsOutput struct {
+	Header  DebateHeaderOutput  `json:"header"`
+	Topic   string              `json:"topic"`
+	Name    string              `json:"name"`
+	Agents  []AgentRow          `json:"agents"`
+	Rounds  []DebateRoundOutput `json:"rounds"`
+	Summary DebateSummaryDetail `json:"summary"`
 }

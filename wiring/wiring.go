@@ -73,8 +73,7 @@ func BuildUsecases(cfg config.Config) (*Usecases, error) {
 		},
 		GenerateDebateSummary: &core.GenerateDebateSummaryUsecase{
 			LLMResolver: llmResolver,
-			LLMProvider: cfg.LLMProvider,
-			Model:       cfg.OpenAI.Model,
+			Defaults:    llmDefaults,
 		},
 		AssignDebateVoices: &core.AssignDebateVoicesUsecase{
 			TTSResolver: ttsResolver,

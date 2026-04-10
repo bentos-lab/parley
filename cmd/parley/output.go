@@ -8,6 +8,7 @@ import (
 
 	"github.com/bentos-lab/parley/adapter/inbound/cli"
 	jsonoutput "github.com/bentos-lab/parley/adapter/inbound/cli/json"
+	"github.com/bentos-lab/parley/adapter/inbound/cli/normal"
 	"github.com/bentos-lab/parley/adapter/inbound/cli/pretty"
 )
 
@@ -43,6 +44,23 @@ func listOutputForCommand(cmd *cobra.Command) (cli.ListOutput, error) {
 		return jsonoutput.New(), nil
 	default:
 		return nil, fmt.Errorf("invalid format %q (expected pretty or json)", format)
+	}
+}
+
+func getOutputForCommand(cmd *cobra.Command) (cli.GetOutput, error) {
+	format, err := formatFlag(cmd)
+	if err != nil {
+		return nil, err
+	}
+	switch strings.ToLower(format) {
+	case "pretty":
+		return pretty.New(), nil
+	case "normal":
+		return normal.New(), nil
+	case "json":
+		return jsonoutput.New(), nil
+	default:
+		return nil, fmt.Errorf("invalid format %q (expected pretty, normal, or json)", format)
 	}
 }
 

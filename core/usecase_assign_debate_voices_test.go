@@ -22,10 +22,16 @@ func (s *stubTTS) AgentVoices() map[string]string {
 }
 
 type stubVoiceAssn struct {
-	assigned map[string]string
+	assigned         map[string]string
+	lastProvider     string
+	lastModel        string
+	captureSelection bool
 }
 
 func (s *stubVoiceAssn) AssignVoices(ctx context.Context, voices map[string]string, agents map[string]contract.AgentSpec) (map[string]string, error) {
+	if s.captureSelection {
+		s.lastProvider, s.lastModel = LLMSelectionFromContext(ctx)
+	}
 	return s.assigned, nil
 }
 
@@ -67,4 +73,27 @@ func TestAssignDebateVoicesAutoAssigns(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, "voice-1", output.Agents[0].VoiceName)
+}
+
+func TestAssignDebateVoicesUsesContextSelection(t *testing.T) {
+	t.Parallel()
+	tts := &stubTTS{voices: map[string]string{"voice-1": "desc"}}
+	voiceAssn := &stubVoiceAssn{
+		assigned:         map[string]string{"a1": "voice-1"},
+		captureSelection: true,
+	}
+	usecase := &AssignDebateVoicesUsecase{
+		TTSResolver: contract.TTSResolverFunc(func(provider string) (contract.TTS, error) {
+			return tts, nil
+		}),
+		VoiceAssn: voiceAssn,
+	}
+	ctx := WithLLMSelection(context.Background(), "gemini", "ctx-model")
+	_, err := usecase.Execute(ctx, AssignDebateVoicesInput{
+		Agents:      []debate.DebateAgent{{ID: "a1", Name: "Alex"}},
+		TTSProvider: "native",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "gemini", voiceAssn.lastProvider)
+	require.Equal(t, "ctx-model", voiceAssn.lastModel)
 }

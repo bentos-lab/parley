@@ -16,7 +16,7 @@ var desktopOpenURL = fmt.Sprintf("http://%s", defaultHTTPAddr)
 // runDesktopLauncher starts the HTTP server with a CLI-friendly workflow for double-click launches.
 // Parameters: ctx is the parent context, usecases configures services, and cfg provides global configuration.
 // Returns: any fatal error occurred while running the HTTP server or managing the PID file.
-func runDesktopLauncher(ctx context.Context) error {
+func runDesktopLauncher(_ context.Context) error {
 	go func() {
 		time.Sleep(2 * time.Second)
 		if err := openBrowser(desktopOpenURL); err != nil {

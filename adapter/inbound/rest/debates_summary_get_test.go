@@ -189,8 +189,10 @@ func TestGetDebateSummaryNewForcesRegeneration(t *testing.T) {
 				LLMResolver: contract.LLMResolverFunc(func(provider string, model string) (contract.LLM, error) {
 					return llm, nil
 				}),
-				LLMProvider: "test",
-				Model:       "model",
+				Defaults: core.LLMDefaults{
+					Provider:    "openai",
+					OpenAIModel: "model",
+				},
 			},
 		}
 		return usecases, config.Config{}, true

@@ -94,17 +94,11 @@ func Load() (Config, error) {
 		InworldAPIKey: fileCfg.TTS.Inworld.APIKey,
 		InworldModel:  fileCfg.TTS.Inworld.Model,
 	}
-	if cfg.LLMProvider == "" {
-		cfg.LLMProvider = defaultLLMProvider
-	}
 	if cfg.TTSProvider == "" {
 		cfg.TTSProvider = defaultTTSProvider
 	}
 	if cfg.OpenAI.BaseURL == "" {
 		cfg.OpenAI.BaseURL = defaultLLMBaseURL
-	}
-	if cfg.OpenAI.Model == "" {
-		cfg.OpenAI.Model = defaultLLMModel
 	}
 	if cfg.InworldModel == "" {
 		cfg.InworldModel = defaultInworldModel
@@ -115,29 +109,41 @@ func Load() (Config, error) {
 	if value := os.Getenv("OPENAI_API_KEY"); value != "" {
 		cfg.OpenAI.APIKey = value
 	}
-	if value := os.Getenv("OPENAI_MODEL"); value != "" {
-		cfg.OpenAI.Model = value
-	}
 	if value := os.Getenv("ANTHROPIC_API_KEY"); value != "" {
 		cfg.Anthropic.APIKey = value
 	}
-	if value := os.Getenv("ANTHROPIC_MODEL"); value != "" {
-		cfg.Anthropic.Model = value
-	}
 	if value := os.Getenv("GEMINI_API_KEY"); value != "" {
 		cfg.Gemini.APIKey = value
-	}
-	if value := os.Getenv("GEMINI_MODEL"); value != "" {
-		cfg.Gemini.Model = value
-	}
-	if value := os.Getenv("LLM_PROVIDER"); value != "" {
-		cfg.LLMProvider = strings.TrimSpace(value)
 	}
 	if value := os.Getenv("INWORLD_API_KEY"); value != "" {
 		cfg.InworldAPIKey = value
 	}
 	if value := os.Getenv("INWORLD_MODEL"); value != "" {
 		cfg.InworldModel = value
+	}
+	if cfg.LLMProvider == "" {
+		if value := strings.TrimSpace(os.Getenv("LLM_PROVIDER")); value != "" {
+			cfg.LLMProvider = value
+		} else {
+			cfg.LLMProvider = defaultLLMProvider
+		}
+	}
+	if cfg.OpenAI.Model == "" {
+		if value := os.Getenv("OPENAI_MODEL"); value != "" {
+			cfg.OpenAI.Model = value
+		} else {
+			cfg.OpenAI.Model = defaultLLMModel
+		}
+	}
+	if cfg.Anthropic.Model == "" {
+		if value := os.Getenv("ANTHROPIC_MODEL"); value != "" {
+			cfg.Anthropic.Model = value
+		}
+	}
+	if cfg.Gemini.Model == "" {
+		if value := os.Getenv("GEMINI_MODEL"); value != "" {
+			cfg.Gemini.Model = value
+		}
 	}
 	if !isSupportedLLMProvider(cfg.LLMProvider) {
 		return Config{}, fmt.Errorf("unsupported llm provider: %s", cfg.LLMProvider)

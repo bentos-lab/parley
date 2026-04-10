@@ -75,7 +75,7 @@ func (u *ParseParleyCommandUsecase) Execute(ctx context.Context, input ParseParl
 	if u.LLMResolver == nil {
 		return ParseParleyCommandOutput{}, fmt.Errorf("llm resolver is required")
 	}
-	provider, model, err := ResolveLLMSelection("", "", "", "", u.Defaults)
+	provider, model, err := ResolveEffectiveLLMSelection(ctx, "", "", u.Defaults)
 	if err != nil {
 		return ParseParleyCommandOutput{}, err
 	}

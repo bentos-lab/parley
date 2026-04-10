@@ -142,6 +142,61 @@ func (o *Output) DebateResult(writer io.Writer, file string, id string) error {
 	return nil
 }
 
+// DebateDetails renders the full debate payload for the get command.
+// Parameters: writer is the output destination, details contains full debate information.
+// Returns: an error if writing fails.
+func (o *Output) DebateDetails(writer io.Writer, details cli.DebateDetailsOutput) error {
+	header := formatHeader(cli.DebateSummary{
+		Name:        details.Name,
+		Topic:       details.Topic,
+		TTSProvider: details.Header.TTSProvider,
+		AppName:     details.Header.AppName,
+		AgentsCount: details.Header.AgentsCount,
+		LLMProvider: details.Header.LLMProvider,
+		LLMModel:    details.Header.LLMModel,
+		TTSModel:    details.Header.TTSModel,
+	})
+	identifier := HeaderCard("ID", mutedStyle.Render(details.Header.ID))
+	topic := HeaderCard("Topic", mutedStyle.Render(details.Topic))
+
+	agentRows := make([][]string, 0, len(details.Agents))
+	for _, agent := range details.Agents {
+		agentRows = append(agentRows, []string{agent.ID, agent.Name, agent.Stance, agent.Voice})
+	}
+	agents := HeaderCard("Agents", AgentsTable(agentRows))
+	if len(agentRows) == 0 {
+		agents = HeaderCard("Agents", BulletList([]string{"(none)"}))
+	}
+
+	roundSections := make([]string, 0, len(details.Rounds))
+	for _, round := range details.Rounds {
+		content := BulletList([]string{
+			fmt.Sprintf("%s: %s", renderRoundWithStyle("Agent", true, false), round.AgentName),
+			fmt.Sprintf("%s: %s", renderRoundWithStyle("Voice", true, false), formatRoundMessage(round.Message)),
+			fmt.Sprintf("%s: %s", renderRoundWithStyle("Summary", true, false), round.Summary),
+			fmt.Sprintf("%s: %s", renderRoundWithStyle("Weakness", true, false), round.Weakness),
+			fmt.Sprintf("%s: %s", renderRoundWithStyle("New Point", true, false), round.NewPoint),
+			fmt.Sprintf("%s: %s", renderRoundWithStyle("Rebuttal", true, false), round.Rebuttal),
+		})
+		roundSections = append(roundSections, RoundCardWithTheme(round.Number, round.AgentName, content, roundThemes[round.Number%len(roundThemes)]))
+	}
+	if len(roundSections) == 0 {
+		roundSections = append(roundSections, HeaderCard("Rounds", BulletList([]string{"(none)"})))
+	}
+
+	summary := buildSummaryContent(cli.DebateSummaryOutput{
+		Summary: details.Summary,
+		Agents:  details.Agents,
+	})
+	summaryCard := HeaderCard("Summary", summary)
+
+	all := []string{header, identifier, topic, agents}
+	all = append(all, roundSections...)
+	all = append(all, summaryCard)
+	_, err := fmt.Fprintln(writer, strings.Join(all, "\n\n"))
+	return err
+}
+
 func (o *Output) ListDebates(writer io.Writer, ids []string) error {
 	if len(ids) == 0 {
 		if _, err := fmt.Fprintln(writer, "No debates found."); err != nil {

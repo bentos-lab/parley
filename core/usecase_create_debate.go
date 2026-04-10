@@ -12,8 +12,6 @@ type CreateDebateInput struct {
 	Topic       string
 	Agents      []debate.DebateAgent
 	TTSProvider string
-	LLMProvider string
-	LLMModel    string
 }
 
 // CreateDebateOutput is the result of a debate creation.
@@ -34,7 +32,7 @@ func (u *CreateDebateUsecase) Execute(ctx context.Context, input CreateDebateInp
 	if err != nil {
 		return CreateDebateOutput{}, err
 	}
-	llmProvider, llmModel, err := ResolveLLMSelection(input.LLMProvider, input.LLMModel, "", "", u.LLMDefaults)
+	llmProvider, llmModel, err := ResolveEffectiveLLMSelection(ctx, "", "", u.LLMDefaults)
 	if err != nil {
 		return CreateDebateOutput{}, err
 	}

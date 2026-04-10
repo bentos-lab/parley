@@ -16,8 +16,8 @@ Behavior:
 - `--num-agents`: Number of agents to auto-generate.
 - `--num-rounds`: Maximum number of rounds to generate.
 - `--tts-provider`: Optional TTS provider override for this debate (default: config `tts.provider`, which is `native` when unset).
-- `--llm-provider`: Optional LLM provider override for this debate (default: config `llm.provider`).
-- `--llm-model`: Optional LLM model override for this debate (default: provider-specific config model).
+- `--llm-provider`: Optional LLM provider override for this debate.
+- `--llm-model`: Optional LLM model override for this debate.
 - Create a new debate with the given topic. The name and agents are generated automatically.
 - Immediately print a basic header with app/model info and the topic.
 - Generate the debate name and print it as muted text.
@@ -25,6 +25,7 @@ Behavior:
 - Print each generated round as a card with two bullets: `Voice` (formatted message) and `Summary` (plain text).
 - After rounds finish, generate the debate summary and print it, including the conclusion.
 - Save the debate to a file.
+- LLM provider/model resolution order is: CLI override, stored debate values, config file, environment, then built-in defaults.
 - Run a loop for up to the specified number of rounds.
 - For each round, generate it automatically and save the debate.
 - After the loop finishes, print the saved filename plus the debate ID to highlight the identifier that other commands accept.
@@ -49,6 +50,7 @@ Behavior:
 - After rounds finish, generate the debate summary and print it, including the conclusion.
 - Run a loop for up to the specified number of rounds.
 - For each round, generate it automatically and save the debate.
+- LLM provider/model resolution order is: CLI override, stored debate values, config file, environment, then built-in defaults.
 
 ## Generate Audio
 
@@ -96,6 +98,23 @@ Behavior:
 
 - `id`: Debate identifier to delete (omit the `.json` suffix).
 - Remove the corresponding saved file and return success or an error if the debate is missing.
+
+## Get a Debate
+
+Usage:
+
+```sh
+<cli> get [id] [--format pretty|normal|json]
+```
+
+Behavior:
+
+- `id`: Debate identifier produced by `create` or listed via `list` (omit the `.json` suffix).
+- `--format`: Output format. Defaults to `pretty`. Supported values: `pretty`, `normal`, `json`.
+- Load the debate by converting the ID to the stored filename.
+- Print full debate information in this order: header, topic, name, agents, rounds, summary.
+- Header includes debate ID, app label, LLM provider/model, TTS provider/model, and agent count.
+- If the debate has no stored summary yet, print read-only empty summary placeholders (do not generate a new summary).
 
 ## Desktop launcher
 Running `parley` without arguments starts the HTTP server and WhatsApp listener while showing a small Fyne window with **Open** (launches `http://localhost:8080`) and **Exit** (stops the services and exits). The same behavior occurs when double-clicking the binaries produced by `build/build.sh` (Linux/macOS `tar.gz`, Windows `.zip`), giving a native launcher while retaining CLI subcommands such as `parley create`.

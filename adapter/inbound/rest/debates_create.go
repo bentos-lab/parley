@@ -44,28 +44,14 @@ func (h *Handler) createDebate(w http.ResponseWriter, r *http.Request) {
 	if req.TTSProvider == "" {
 		req.TTSProvider = cfg.TTSProvider
 	}
-	defaults := core.LLMDefaults{
-		Provider:       cfg.LLMProvider,
-		OpenAIModel:    cfg.OpenAI.Model,
-		AnthropicModel: cfg.Anthropic.Model,
-		GeminiModel:    cfg.Gemini.Model,
-	}
-	llmProvider, llmModel, err := core.ResolveLLMSelection(req.LLMProvider, req.LLMModel, "", "", defaults)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
+	ctx := core.WithLLMSelection(r.Context(), req.LLMProvider, req.LLMModel)
 	name := req.Name
 	if name == "" {
 		if usecases.GenerateDebateName == nil {
 			writeError(w, http.StatusBadRequest, "name generator is required")
 			return
 		}
-		nameOutput, err := usecases.GenerateDebateName.Execute(r.Context(), core.GenerateDebateNameInput{
-			Topic:       req.Topic,
-			LLMProvider: llmProvider,
-			LLMModel:    llmModel,
-		})
+		nameOutput, err := usecases.GenerateDebateName.Execute(ctx, core.GenerateDebateNameInput{Topic: req.Topic})
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
@@ -82,11 +68,9 @@ func (h *Handler) createDebate(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "agent generator is required")
 			return
 		}
-		agentsOutput, err := usecases.GenerateDebateAgents.Execute(r.Context(), core.GenerateAgentsInput{
-			Topic:       req.Topic,
-			Count:       req.NumAgents,
-			LLMProvider: llmProvider,
-			LLMModel:    llmModel,
+		agentsOutput, err := usecases.GenerateDebateAgents.Execute(ctx, core.GenerateAgentsInput{
+			Topic: req.Topic,
+			Count: req.NumAgents,
 		})
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
@@ -98,25 +82,21 @@ func (h *Handler) createDebate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "voice assignment usecase is required")
 		return
 	}
-	voicesOutput, err := usecases.AssignDebateVoices.Execute(r.Context(), core.AssignDebateVoicesInput{
+	voicesOutput, err := usecases.AssignDebateVoices.Execute(ctx, core.AssignDebateVoicesInput{
 		Agents:      agents,
 		TTSProvider: req.TTSProvider,
 		AgentVoices: req.AgentVoices,
-		LLMProvider: llmProvider,
-		LLMModel:    llmModel,
 	})
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	agents = voicesOutput.Agents
-	output, err := usecases.CreateDebate.Execute(r.Context(), core.CreateDebateInput{
+	output, err := usecases.CreateDebate.Execute(ctx, core.CreateDebateInput{
 		Name:        name,
 		Topic:       req.Topic,
 		Agents:      agents,
 		TTSProvider: req.TTSProvider,
-		LLMProvider: llmProvider,
-		LLMModel:    llmModel,
 	})
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())

@@ -67,6 +67,12 @@ Start a debate:
 parley create "Should cities ban cars downtown?" --num-agents 2 --num-rounds 3
 ```
 
+Show a saved debate:
+
+```bash
+parley get <debate_id>
+```
+
 Run `parley --help` for more details.
 
 ## Web UI

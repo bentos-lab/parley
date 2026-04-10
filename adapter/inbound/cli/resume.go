@@ -35,6 +35,7 @@ func Resume(ctx context.Context, usecases *wiring.Usecases, output ResumeOutput,
 	if err != nil {
 		return err
 	}
+	ctx = core.WithLLMSelection(ctx, selectedProvider, selectedModel)
 	if err := printDebateHeader(os.Stdout, output, loadOutput.Debate, filename, runtime, selectedProvider, selectedModel); err != nil {
 		return err
 	}
@@ -42,9 +43,7 @@ func Resume(ctx context.Context, usecases *wiring.Usecases, output ResumeOutput,
 	baseRound := len(loadOutput.Debate.Rounds)
 	for i := range numRounds {
 		roundOutput, err := usecases.CreateRound.Execute(ctx, core.CreateRoundInput{
-			Filename:    filename,
-			LLMProvider: selectedProvider,
-			LLMModel:    selectedModel,
+			Filename: filename,
 		})
 		if err != nil {
 			return err

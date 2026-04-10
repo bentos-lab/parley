@@ -39,8 +39,7 @@ func (g *VoiceAssigner) AssignVoices(ctx context.Context, voices map[string]stri
 	if g.llmResolver == nil {
 		return nil, fmt.Errorf("llm resolver is required")
 	}
-	overrideProvider, overrideModel := LLMSelectionFromContext(ctx)
-	provider, model, err := ResolveLLMSelection(overrideProvider, overrideModel, "", "", g.defaults)
+	provider, model, err := ResolveEffectiveLLMSelection(ctx, "", "", g.defaults)
 	if err != nil {
 		return nil, err
 	}

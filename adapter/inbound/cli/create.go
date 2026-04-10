@@ -30,6 +30,7 @@ func Create(ctx context.Context, usecases *wiring.Usecases, output CreateOutput,
 	if err != nil {
 		return err
 	}
+	ctx = core.WithLLMSelection(ctx, selectedProvider, selectedModel)
 	if err := printDebateBasics(os.Stdout, output, topic, ttsProvider, runtime, selectedProvider, selectedModel); err != nil {
 		return err
 	}
@@ -38,9 +39,7 @@ func Create(ctx context.Context, usecases *wiring.Usecases, output CreateOutput,
 		return fmt.Errorf("name generator is required")
 	}
 	nameOutput, err := usecases.GenerateDebateName.Execute(ctx, core.GenerateDebateNameInput{
-		Topic:       topic,
-		LLMProvider: selectedProvider,
-		LLMModel:    selectedModel,
+		Topic: topic,
 	})
 	if err != nil {
 		return err
@@ -56,10 +55,8 @@ func Create(ctx context.Context, usecases *wiring.Usecases, output CreateOutput,
 		return fmt.Errorf("agent generator is required")
 	}
 	agentsOutput, err := usecases.GenerateDebateAgents.Execute(ctx, core.GenerateAgentsInput{
-		Topic:       topic,
-		Count:       numAgents,
-		LLMProvider: selectedProvider,
-		LLMModel:    selectedModel,
+		Topic: topic,
+		Count: numAgents,
 	})
 	if err != nil {
 		return err
@@ -71,8 +68,6 @@ func Create(ctx context.Context, usecases *wiring.Usecases, output CreateOutput,
 	voicesOutput, err := usecases.AssignDebateVoices.Execute(ctx, core.AssignDebateVoicesInput{
 		Agents:      agents,
 		TTSProvider: ttsProvider,
-		LLMProvider: selectedProvider,
-		LLMModel:    selectedModel,
 	})
 	if err != nil {
 		return err
@@ -84,8 +79,6 @@ func Create(ctx context.Context, usecases *wiring.Usecases, output CreateOutput,
 		Topic:       topic,
 		Agents:      agents,
 		TTSProvider: ttsProvider,
-		LLMProvider: selectedProvider,
-		LLMModel:    selectedModel,
 	})
 	if err != nil {
 		return err
@@ -96,9 +89,7 @@ func Create(ctx context.Context, usecases *wiring.Usecases, output CreateOutput,
 	agentLookup := buildAgentMap(result.Debate.Agents)
 	for i := 0; i < numRounds; i++ {
 		roundOutput, err := usecases.CreateRound.Execute(ctx, core.CreateRoundInput{
-			Filename:    result.Filename,
-			LLMProvider: selectedProvider,
-			LLMModel:    selectedModel,
+			Filename: result.Filename,
 		})
 		if err != nil {
 			return err

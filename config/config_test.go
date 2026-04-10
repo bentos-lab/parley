@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestLoadConfigEnvOverrides(t *testing.T) {
+func TestLoadConfigFileLLMModelOverridesEnv(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
 	path, err := ConfigPath()
@@ -40,14 +40,42 @@ model = "inworld-tts-1.5-mini"
 	if cfg.OpenAI.BaseURL != "https://example.com" {
 		t.Fatalf("expected base url from file, got %q", cfg.OpenAI.BaseURL)
 	}
-	if cfg.OpenAI.Model != "env-model" {
-		t.Fatalf("expected OpenAI model override, got %q", cfg.OpenAI.Model)
+	if cfg.OpenAI.Model != "file-model" {
+		t.Fatalf("expected OpenAI model from file, got %q", cfg.OpenAI.Model)
 	}
 	if cfg.InworldModel != "env-inworld-model" {
 		t.Fatalf("expected Inworld model override, got %q", cfg.InworldModel)
 	}
 	if cfg.OpenAI.APIKey != "file-key" || cfg.InworldAPIKey != "file-inworld-key" {
 		t.Fatalf("expected API keys from file, got %q / %q", cfg.OpenAI.APIKey, cfg.InworldAPIKey)
+	}
+}
+
+func TestLoadConfigEnvLLMModelUsedWhenFileMissing(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	path, err := ConfigPath()
+	if err != nil {
+		t.Fatalf("config path: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	configData := `
+[llm.openai]
+api_key = "file-key"
+`
+	if err := os.WriteFile(path, []byte(configData), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("OPENAI_MODEL", "env-model")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if cfg.OpenAI.Model != "env-model" {
+		t.Fatalf("expected OpenAI model from env fallback, got %q", cfg.OpenAI.Model)
 	}
 }
 
@@ -80,6 +108,39 @@ api_key = "file-inworld-key"
 	}
 	if cfg.TTSProvider != "native" {
 		t.Fatalf("expected default tts provider, got %q", cfg.TTSProvider)
+	}
+}
+
+func TestLoadConfigProviderFileOverridesEnv(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	path, err := ConfigPath()
+	if err != nil {
+		t.Fatalf("config path: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	configData := `
+[llm]
+provider = "anthropic"
+
+[llm.anthropic]
+api_key = "file-key"
+model = "file-model"
+`
+	if err := os.WriteFile(path, []byte(configData), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("LLM_PROVIDER", "openai")
+	t.Setenv("OPENAI_API_KEY", "ignored")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if cfg.LLMProvider != "anthropic" {
+		t.Fatalf("expected provider from file, got %q", cfg.LLMProvider)
 	}
 }
 

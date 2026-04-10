@@ -11,10 +11,8 @@ import (
 
 // GenerateAgentsInput defines inputs for generating debate agents.
 type GenerateAgentsInput struct {
-	Topic       string
-	Count       int
-	LLMProvider string
-	LLMModel    string
+	Topic string
+	Count int
 }
 
 // GenerateAgentsOutput is the result of a debate agent generation.
@@ -55,7 +53,7 @@ func (u *GenerateAgentsUsecase) Execute(ctx context.Context, input GenerateAgent
 	if u.LLMResolver == nil {
 		return GenerateAgentsOutput{}, fmt.Errorf("llm resolver is required")
 	}
-	provider, model, err := ResolveLLMSelection(input.LLMProvider, input.LLMModel, "", "", u.Defaults)
+	provider, model, err := ResolveEffectiveLLMSelection(ctx, "", "", u.Defaults)
 	if err != nil {
 		return GenerateAgentsOutput{}, err
 	}

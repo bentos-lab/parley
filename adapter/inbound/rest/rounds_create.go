@@ -26,11 +26,9 @@ func (h *Handler) createRound(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	output, err := usecases.CreateRound.Execute(r.Context(), core.CreateRoundInput{
-		Filename:    filename,
-		AgentID:     req.AgentID,
-		Content:     req.Content,
-		LLMProvider: "",
-		LLMModel:    "",
+		Filename: filename,
+		AgentID:  req.AgentID,
+		Content:  req.Content,
 	})
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())

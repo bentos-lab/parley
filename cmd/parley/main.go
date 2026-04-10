@@ -72,6 +72,7 @@ func newRootCommand(ctx context.Context, usecases *wiring.Usecases, runtime cli.
 	root.AddCommand(newCreateCommand(ctx, usecases, runtime))
 	root.AddCommand(newResumeCommand(ctx, usecases, runtime))
 	root.AddCommand(newListCommand(usecases))
+	root.AddCommand(newGetCommand(ctx, usecases, runtime))
 	root.AddCommand(newDeleteCommand(ctx, usecases))
 	root.AddCommand(newAudioCommand(ctx, usecases))
 	root.AddCommand(newUpdateCommand(ctx))

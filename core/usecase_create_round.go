@@ -12,11 +12,9 @@ import (
 
 // CreateRoundInput defines the inputs for creating a debate round.
 type CreateRoundInput struct {
-	Filename    string
-	AgentID     string
-	Content     string
-	LLMProvider string
-	LLMModel    string
+	Filename string
+	AgentID  string
+	Content  string
 }
 
 // CreateRoundOutput is the result of creating a debate round.
@@ -63,7 +61,7 @@ func (u *CreateRoundUsecase) createRound(ctx context.Context, debateItem *debate
 	if u.LLMResolver == nil {
 		return debate.DebateRound{}, fmt.Errorf("llm resolver is required")
 	}
-	provider, model, err := ResolveLLMSelection(input.LLMProvider, input.LLMModel, debateItem.LLMProvider, debateItem.LLMModel, u.Defaults)
+	provider, model, err := ResolveEffectiveLLMSelection(ctx, debateItem.LLMProvider, debateItem.LLMModel, u.Defaults)
 	if err != nil {
 		return debate.DebateRound{}, err
 	}
