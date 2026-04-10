@@ -92,8 +92,8 @@ Request:
 
 Response:
 
-- `agents`: Map of `agent_id` to list of summary points.
-- `conclusion`: Final debate conclusion.
+- `agents`: Array of arrays of summary points, where index `i` corresponds to the debate agent at index `i` in the saved debate payload.
+- `final_conclusion`: Final debate conclusion.
 
 Procedure:
 

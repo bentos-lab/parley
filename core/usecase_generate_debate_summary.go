@@ -84,15 +84,15 @@ func (u *GenerateDebateSummaryUsecase) Execute(ctx context.Context, input Genera
 		return GenerateDebateSummaryOutput{}, err
 	}
 	var parsed struct {
-		Agents     map[string][]string `json:"agents"`
-		Conclusion string              `json:"conclusion"`
+		Agents          [][]string `json:"agents"`
+		FinalConclusion string     `json:"final_conclusion"`
 	}
 	if err := json.Unmarshal([]byte(response), &parsed); err != nil {
 		return GenerateDebateSummaryOutput{}, fmt.Errorf("parse summary json: %w, %s", err, response)
 	}
 	normalized := debate.DebateSummaryDetail{
 		Agents:     normalizeSummaryAgents(parsed.Agents),
-		Conclusion: strings.TrimSpace(parsed.Conclusion),
+		Conclusion: strings.TrimSpace(parsed.FinalConclusion),
 	}
 	debateItem.Summary = &normalized
 	if err := debateItem.SaveAs(input.Filename); err != nil {
@@ -102,14 +102,14 @@ func (u *GenerateDebateSummaryUsecase) Execute(ctx context.Context, input Genera
 }
 
 // normalizeSummaryAgents trims and filters empty summary points.
-// Parameters: agents maps agent IDs to summary points.
-// Returns: a cleaned map of agent IDs to summary points.
-func normalizeSummaryAgents(agents map[string][]string) map[string][]string {
+// Parameters: agents is the ordered list of summary points per agent.
+// Returns: a cleaned list of points per agent, preserving the input ordering.
+func normalizeSummaryAgents(agents [][]string) [][]string {
 	if agents == nil {
-		return map[string][]string{}
+		return [][]string{}
 	}
-	cleaned := make(map[string][]string, len(agents))
-	for agentID, points := range agents {
+	cleaned := make([][]string, 0, len(agents))
+	for _, points := range agents {
 		trimmed := make([]string, 0, len(points))
 		for _, point := range points {
 			value := strings.TrimSpace(point)
@@ -118,7 +118,7 @@ func normalizeSummaryAgents(agents map[string][]string) map[string][]string {
 			}
 			trimmed = append(trimmed, value)
 		}
-		cleaned[agentID] = trimmed
+		cleaned = append(cleaned, trimmed)
 	}
 	return cleaned
 }
@@ -132,17 +132,19 @@ func summaryResponseSchema() *contract.LLMJSONSchema {
 			"type": "object",
 			"properties": map[string]any{
 				"agents": map[string]any{
-					"type": "object",
-					"additionalProperties": map[string]any{
-						"type":  "array",
-						"items": map[string]any{"type": "string"},
+					"type": "array",
+					"items": map[string]any{
+						"type": "array",
+						"items": map[string]any{
+							"type": "string",
+						},
 					},
 				},
-				"conclusion": map[string]any{
+				"final_conclusion": map[string]any{
 					"type": "string",
 				},
 			},
-			"required":             []string{"agents", "conclusion"},
+			"required":             []string{"agents", "final_conclusion"},
 			"additionalProperties": false,
 		},
 	}

@@ -48,8 +48,8 @@ type DebateRound struct {
 
 // DebateSummaryDetail stores the LLM-generated summary for a debate.
 type DebateSummaryDetail struct {
-	Agents     map[string][]string `json:"agents"`
-	Conclusion string              `json:"conclusion"`
+	Agents     [][]string `json:"agents"`
+	Conclusion string     `json:"final_conclusion"`
 }
 
 // DebateSummary stores the minimal information for listing debates.

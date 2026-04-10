@@ -63,9 +63,7 @@ func TestGetDebateSummaryReturnsStoredSummary(t *testing.T) {
 			{AgentID: "agent-1", Message: "Round 1"},
 		},
 		Summary: &debate.DebateSummaryDetail{
-			Agents: map[string][]string{
-				"agent-1": {"Point A"},
-			},
+			Agents:     [][]string{{"Point A"}},
 			Conclusion: "Conclusion A",
 		},
 	}
@@ -164,9 +162,7 @@ func TestGetDebateSummaryNewForcesRegeneration(t *testing.T) {
 			{AgentID: "agent-1", Message: "Round 1"},
 		},
 		Summary: &debate.DebateSummaryDetail{
-			Agents: map[string][]string{
-				"agent-1": {"Old point"},
-			},
+			Agents:     [][]string{{"Old point"}},
 			Conclusion: "Old conclusion",
 		},
 	}
@@ -174,7 +170,7 @@ func TestGetDebateSummaryNewForcesRegeneration(t *testing.T) {
 	require.NoError(t, debateItem.SaveAs(filename))
 
 	llm := &stubSummaryLLM{
-		jsonResponse: `{"agents":{"agent-1":["New point"]},"conclusion":"New conclusion"}`,
+		jsonResponse: `{"agents":[["New point"]],"final_conclusion":"New conclusion"}`,
 	}
 	handler := NewHandler(WithUsecasesLoader(func(w http.ResponseWriter) (*wiring.Usecases, config.Config, bool) {
 		usecases := &wiring.Usecases{
@@ -202,5 +198,5 @@ func TestGetDebateSummaryNewForcesRegeneration(t *testing.T) {
 	var payload debate.DebateSummaryDetail
 	require.NoError(t, json.NewDecoder(recorder.Body).Decode(&payload))
 	require.Equal(t, "New conclusion", payload.Conclusion)
-	require.Equal(t, []string{"New point"}, payload.Agents["agent-1"])
+	require.Equal(t, [][]string{{"New point"}}, payload.Agents)
 }

@@ -29,7 +29,7 @@ func TestGenerateDebateSummaryCreatesSummary(t *testing.T) {
 	require.NoError(t, debateItem.SaveAs(filename))
 
 	llm := &stubLLM{
-		jsonResponse: `{"agents":{"agent-1":["Point A"]},"conclusion":"Conclusion A"}`,
+		jsonResponse: `{"agents":[["Point A"]],"final_conclusion":"Conclusion A"}`,
 	}
 	usecase := &GenerateDebateSummaryUsecase{
 		LLMResolver: contract.ResolverFunc[contract.LLM](func(name string) (contract.LLM, error) {
@@ -42,7 +42,7 @@ func TestGenerateDebateSummaryCreatesSummary(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, llm.generateJSONCalled)
 	require.Equal(t, "Conclusion A", output.Summary.Conclusion)
-	require.Equal(t, []string{"Point A"}, output.Summary.Agents["agent-1"])
+	require.Equal(t, [][]string{{"Point A"}}, output.Summary.Agents)
 
 	loaded, err := debate.LoadDebate(filename)
 	require.NoError(t, err)
@@ -66,9 +66,7 @@ func TestGenerateDebateSummaryReusesStoredSummary(t *testing.T) {
 			{AgentID: "agent-1", Message: "Round 1"},
 		},
 		Summary: &debate.DebateSummaryDetail{
-			Agents: map[string][]string{
-				"agent-1": {"Stored point"},
-			},
+			Agents:     [][]string{{"Stored point"}},
 			Conclusion: "Stored conclusion",
 		},
 	}
@@ -97,9 +95,7 @@ func TestGenerateDebateSummaryForceNewRegenerates(t *testing.T) {
 			{AgentID: "agent-1", Message: "Round 1"},
 		},
 		Summary: &debate.DebateSummaryDetail{
-			Agents: map[string][]string{
-				"agent-1": {"Old point"},
-			},
+			Agents:     [][]string{{"Old point"}},
 			Conclusion: "Old conclusion",
 		},
 	}
@@ -107,7 +103,7 @@ func TestGenerateDebateSummaryForceNewRegenerates(t *testing.T) {
 	require.NoError(t, debateItem.SaveAs(filename))
 
 	llm := &stubLLM{
-		jsonResponse: `{"agents":{"agent-1":["New point"]},"conclusion":"New conclusion"}`,
+		jsonResponse: `{"agents":[["New point"]],"final_conclusion":"New conclusion"}`,
 	}
 	usecase := &GenerateDebateSummaryUsecase{
 		LLMResolver: contract.ResolverFunc[contract.LLM](func(name string) (contract.LLM, error) {
