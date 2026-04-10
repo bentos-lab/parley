@@ -15,6 +15,8 @@ A debate stores information about a single debate session.
 - `Summary`: Debate summary generated after rounds complete.
 - `Summary` fields: `agents` (map of `agent_id` to list of summary points), `conclusion` (final conclusion).
 - `TTSProvider`: Preferred TTS provider for the debate.
+- `LLMProvider`: Preferred LLM provider for the debate.
+- `LLMModel`: Preferred LLM model for the debate.
 
 ## Features
 

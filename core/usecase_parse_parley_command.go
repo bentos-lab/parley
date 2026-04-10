@@ -58,9 +58,8 @@ type ParseParleyCommandOutput struct {
 
 // ParseParleyCommandUsecase parses a /parley command via the LLM.
 type ParseParleyCommandUsecase struct {
-	LLMResolver contract.Resolver[contract.LLM]
-	LLMProvider string
-	Model       string
+	LLMResolver contract.LLMResolver
+	Defaults    LLMDefaults
 }
 
 const (
@@ -76,10 +75,11 @@ func (u *ParseParleyCommandUsecase) Execute(ctx context.Context, input ParseParl
 	if u.LLMResolver == nil {
 		return ParseParleyCommandOutput{}, fmt.Errorf("llm resolver is required")
 	}
-	if u.LLMProvider == "" {
-		return ParseParleyCommandOutput{}, fmt.Errorf("llm provider is required")
+	provider, model, err := ResolveLLMSelection("", "", "", "", u.Defaults)
+	if err != nil {
+		return ParseParleyCommandOutput{}, err
 	}
-	llm, err := u.LLMResolver.Resolve(u.LLMProvider)
+	llm, err := u.LLMResolver.Resolve(provider, model)
 	if err != nil {
 		return ParseParleyCommandOutput{}, err
 	}
@@ -93,7 +93,6 @@ func (u *ParseParleyCommandUsecase) Execute(ctx context.Context, input ParseParl
 		SystemInstruction: systemPrompt,
 		Messages:          messages,
 		Temperature:       parseParleyLLMTemperature,
-		Model:             u.Model,
 		MaxTokens:         parseParleyLLMMaxTokens,
 	}, parseParleySchema())
 	if err != nil {

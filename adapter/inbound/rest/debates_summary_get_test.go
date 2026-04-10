@@ -18,7 +18,9 @@ import (
 
 type stubSummaryLLM struct {
 	jsonResponse       string
+	jsonResponses      []string
 	generateJSONCalled bool
+	generateJSONCalls  int
 }
 
 // Generate returns a placeholder response for non-JSON calls.
@@ -33,6 +35,12 @@ func (s *stubSummaryLLM) Generate(ctx context.Context, req contract.LLMRequest) 
 // Returns: the JSON response string and nil error.
 func (s *stubSummaryLLM) GenerateJSON(ctx context.Context, req contract.LLMRequest, schema *contract.LLMJSONSchema) (string, error) {
 	s.generateJSONCalled = true
+	s.generateJSONCalls++
+	if len(s.jsonResponses) > 0 {
+		response := s.jsonResponses[0]
+		s.jsonResponses = s.jsonResponses[1:]
+		return response, nil
+	}
 	return s.jsonResponse, nil
 }
 
@@ -63,9 +71,7 @@ func TestGetDebateSummaryReturnsStoredSummary(t *testing.T) {
 			{AgentID: "agent-1", Message: "Round 1"},
 		},
 		Summary: &debate.DebateSummaryDetail{
-			Agents: map[string][]string{
-				"agent-1": {"Point A"},
-			},
+			Agents:     [][]string{{"Point A"}},
 			Conclusion: "Conclusion A",
 		},
 	}
@@ -164,9 +170,7 @@ func TestGetDebateSummaryNewForcesRegeneration(t *testing.T) {
 			{AgentID: "agent-1", Message: "Round 1"},
 		},
 		Summary: &debate.DebateSummaryDetail{
-			Agents: map[string][]string{
-				"agent-1": {"Old point"},
-			},
+			Agents:     [][]string{{"Old point"}},
 			Conclusion: "Old conclusion",
 		},
 	}
@@ -174,12 +178,15 @@ func TestGetDebateSummaryNewForcesRegeneration(t *testing.T) {
 	require.NoError(t, debateItem.SaveAs(filename))
 
 	llm := &stubSummaryLLM{
-		jsonResponse: `{"agents":{"agent-1":["New point"]},"conclusion":"New conclusion"}`,
+		jsonResponses: []string{
+			`{"points":["New point"]}`,
+			`{"final_conclusion":"New conclusion"}`,
+		},
 	}
 	handler := NewHandler(WithUsecasesLoader(func(w http.ResponseWriter) (*wiring.Usecases, config.Config, bool) {
 		usecases := &wiring.Usecases{
 			GenerateDebateSummary: &core.GenerateDebateSummaryUsecase{
-				LLMResolver: contract.ResolverFunc[contract.LLM](func(name string) (contract.LLM, error) {
+				LLMResolver: contract.LLMResolverFunc(func(provider string, model string) (contract.LLM, error) {
 					return llm, nil
 				}),
 				LLMProvider: "test",
@@ -199,8 +206,9 @@ func TestGetDebateSummaryNewForcesRegeneration(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.True(t, llm.generateJSONCalled)
+	require.Equal(t, 2, llm.generateJSONCalls)
 	var payload debate.DebateSummaryDetail
 	require.NoError(t, json.NewDecoder(recorder.Body).Decode(&payload))
 	require.Equal(t, "New conclusion", payload.Conclusion)
-	require.Equal(t, []string{"New point"}, payload.Agents["agent-1"])
+	require.Equal(t, [][]string{{"New point"}}, payload.Agents)
 }

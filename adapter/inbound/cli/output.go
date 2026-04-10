@@ -41,8 +41,8 @@ type DebateSummary struct {
 }
 
 type DebateSummaryDetail struct {
-	Agents     map[string][]string `json:"agents"`
-	Conclusion string              `json:"conclusion"`
+	Agents     [][]string `json:"agents"`
+	Conclusion string     `json:"final_conclusion"`
 }
 
 type DebateSummaryOutput struct {

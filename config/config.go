@@ -11,6 +11,8 @@ type Config struct {
 	LLMProvider   string
 	TTSProvider   string
 	OpenAI        OpenAIConfig
+	Anthropic     AnthropicConfig
+	Gemini        GeminiConfig
 	InworldAPIKey string
 	InworldModel  string
 }
@@ -19,6 +21,16 @@ type OpenAIConfig struct {
 	BaseURL string
 	APIKey  string
 	Model   string
+}
+
+type AnthropicConfig struct {
+	APIKey string
+	Model  string
+}
+
+type GeminiConfig struct {
+	APIKey string
+	Model  string
 }
 
 const (
@@ -37,6 +49,14 @@ type fileConfig struct {
 			APIKey  string `toml:"api_key"`
 			Model   string `toml:"model"`
 		} `toml:"openai"`
+		Anthropic struct {
+			APIKey string `toml:"api_key"`
+			Model  string `toml:"model"`
+		} `toml:"anthropic"`
+		Gemini struct {
+			APIKey string `toml:"api_key"`
+			Model  string `toml:"model"`
+		} `toml:"gemini"`
 	} `toml:"llm"`
 	TTS struct {
 		Provider string `toml:"provider"`
@@ -62,6 +82,14 @@ func Load() (Config, error) {
 			BaseURL: fileCfg.LLM.OpenAI.BaseURL,
 			APIKey:  fileCfg.LLM.OpenAI.APIKey,
 			Model:   fileCfg.LLM.OpenAI.Model,
+		},
+		Anthropic: AnthropicConfig{
+			APIKey: fileCfg.LLM.Anthropic.APIKey,
+			Model:  fileCfg.LLM.Anthropic.Model,
+		},
+		Gemini: GeminiConfig{
+			APIKey: fileCfg.LLM.Gemini.APIKey,
+			Model:  fileCfg.LLM.Gemini.Model,
 		},
 		InworldAPIKey: fileCfg.TTS.Inworld.APIKey,
 		InworldModel:  fileCfg.TTS.Inworld.Model,
@@ -90,6 +118,21 @@ func Load() (Config, error) {
 	if value := os.Getenv("OPENAI_MODEL"); value != "" {
 		cfg.OpenAI.Model = value
 	}
+	if value := os.Getenv("ANTHROPIC_API_KEY"); value != "" {
+		cfg.Anthropic.APIKey = value
+	}
+	if value := os.Getenv("ANTHROPIC_MODEL"); value != "" {
+		cfg.Anthropic.Model = value
+	}
+	if value := os.Getenv("GEMINI_API_KEY"); value != "" {
+		cfg.Gemini.APIKey = value
+	}
+	if value := os.Getenv("GEMINI_MODEL"); value != "" {
+		cfg.Gemini.Model = value
+	}
+	if value := os.Getenv("LLM_PROVIDER"); value != "" {
+		cfg.LLMProvider = strings.TrimSpace(value)
+	}
 	if value := os.Getenv("INWORLD_API_KEY"); value != "" {
 		cfg.InworldAPIKey = value
 	}
@@ -110,12 +153,36 @@ func Load() (Config, error) {
 
 // Validate returns an error if required configuration is missing.
 func (c Config) Validate() error {
-	if c.OpenAI.APIKey == "" {
-		return fmt.Errorf("OPENAI_API_KEY is required")
+	switch c.LLMProvider {
+	case "openai":
+		if c.OpenAI.APIKey == "" {
+			return fmt.Errorf("OPENAI_API_KEY is required")
+		}
+	case "anthropic":
+		if c.Anthropic.APIKey == "" {
+			return fmt.Errorf("ANTHROPIC_API_KEY is required")
+		}
+		if c.Anthropic.Model == "" {
+			return fmt.Errorf("ANTHROPIC_MODEL is required")
+		}
+	case "gemini":
+		if c.Gemini.APIKey == "" {
+			return fmt.Errorf("GEMINI_API_KEY is required")
+		}
+		if c.Gemini.Model == "" {
+			return fmt.Errorf("GEMINI_MODEL is required")
+		}
+	default:
+		return fmt.Errorf("unsupported llm provider: %s", c.LLMProvider)
 	}
 	return nil
 }
 
 func isSupportedLLMProvider(provider string) bool {
-	return provider == defaultLLMProvider
+	switch provider {
+	case "openai", "anthropic", "gemini":
+		return true
+	default:
+		return false
+	}
 }

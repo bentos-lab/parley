@@ -214,10 +214,10 @@ func formatBasicsHeader(summary cli.DebateBasics) string {
 // Returns: the formatted summary content string.
 func buildSummaryContent(summary cli.DebateSummaryOutput) string {
 	sections := make([]string, 0, len(summary.Agents)+1)
-	for _, agent := range summary.Agents {
-		points := summary.Summary.Agents[agent.ID]
-		if len(points) == 0 {
-			points = []string{"(no points)"}
+	for index, agent := range summary.Agents {
+		points := []string{"(no points)"}
+		if index < len(summary.Summary.Agents) && len(summary.Summary.Agents[index]) > 0 {
+			points = summary.Summary.Agents[index]
 		}
 		header := fmt.Sprintf("%s (%s)", agent.Name, agent.Stance)
 		section := titleStyle.Render(header) + "\n" + BulletList(points)

@@ -17,9 +17,6 @@ var desktopOpenURL = fmt.Sprintf("http://%s", defaultHTTPAddr)
 // Parameters: ctx is the parent context, usecases configures services, and cfg provides global configuration.
 // Returns: any fatal error occurred while running the HTTP server or managing the PID file.
 func runDesktopLauncher(ctx context.Context) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
 	go func() {
 		time.Sleep(2 * time.Second)
 		if err := openBrowser(desktopOpenURL); err != nil {

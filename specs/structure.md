@@ -29,7 +29,7 @@ Input fields:
 
 - `SystemInstruction`: System prompt or high-level instruction.
 - `Messages`: Role-based conversation content.
-- `Model`: Model identifier.
+- `Model`: Model identifier (optional per-request override; provider/model selection is resolved by the LLM resolver).
 - `Temperature`: Sampling temperature (fixed per usecase in code).
 - `MaxTokens`: Maximum tokens to generate (fixed per usecase in code).
 
@@ -48,4 +48,5 @@ Methods:
 
 ### LLM
 
-- Only OpenAI-compatible providers are supported initially (including endpoints for other providers such as Anthropic and Gemini).
+- Native providers: `openai`, `anthropic`, and `gemini`.
+- LLM resolver selects a provider + model pair per request.

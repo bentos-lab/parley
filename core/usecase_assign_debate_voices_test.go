@@ -56,7 +56,7 @@ func TestAssignDebateVoicesAutoAssigns(t *testing.T) {
 	t.Parallel()
 	tts := &stubTTS{voices: map[string]string{"voice-1": "desc"}}
 	usecase := &AssignDebateVoicesUsecase{
-		TTSResolver: contract.ResolverFunc[contract.TTS](func(name string) (contract.TTS, error) {
+		TTSResolver: contract.TTSResolverFunc(func(provider string) (contract.TTS, error) {
 			return tts, nil
 		}),
 		VoiceAssn: &stubVoiceAssn{assigned: map[string]string{"a1": "voice-1"}},

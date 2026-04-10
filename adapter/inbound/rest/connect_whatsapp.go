@@ -8,6 +8,16 @@ import (
 	"net/http"
 )
 
+// signalWhatsAppListenerReset attempts to notify the WhatsApp listener to reset without blocking.
+// Parameters: none.
+// Returns: nothing.
+func signalWhatsAppListenerReset() {
+	select {
+	case resetWhatsappListenerCh <- struct{}{}:
+	default:
+	}
+}
+
 // connectWhatsAppSession handles the WhatsApp connect status and pairing flow.
 // Parameters: w is the response writer, r is the HTTP request.
 // Returns: nothing.
@@ -69,7 +79,7 @@ func (h *Handler) connectWhatsAppSession(w http.ResponseWriter, r *http.Request)
 	}
 
 	defer func() {
-		resetWhatsappListenerCh <- struct{}{}
+		signalWhatsAppListenerReset()
 	}()
 
 	if err := finalize(r.Context()); err != nil {
@@ -94,7 +104,7 @@ func (h *Handler) deleteWhatsAppSession(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if shouldReset {
-		resetWhatsappListenerCh <- struct{}{}
+		signalWhatsAppListenerReset()
 	}
 
 	w.WriteHeader(http.StatusNoContent)

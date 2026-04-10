@@ -13,6 +13,8 @@ type AssignDebateVoicesInput struct {
 	Agents      []debate.DebateAgent
 	TTSProvider string
 	AgentVoices map[string]string
+	LLMProvider string
+	LLMModel    string
 }
 
 // AssignDebateVoicesOutput is the result of assigning debate voices.
@@ -22,8 +24,9 @@ type AssignDebateVoicesOutput struct {
 
 // AssignDebateVoicesUsecase applies explicit voices and auto-assigns when needed.
 type AssignDebateVoicesUsecase struct {
-	TTSResolver contract.Resolver[contract.TTS]
+	TTSResolver contract.TTSResolver
 	VoiceAssn   contract.AssignVoices
+	Defaults    LLMDefaults
 }
 
 // Execute applies voice overrides and auto-assignment when required.
@@ -44,7 +47,8 @@ func (u *AssignDebateVoicesUsecase) Execute(ctx context.Context, input AssignDeb
 		if err != nil {
 			return AssignDebateVoicesOutput{}, err
 		}
-		if err := u.assignVoicesIfNeeded(ctx, agents, ttsClient); err != nil {
+		voiceCtx := WithLLMSelection(ctx, input.LLMProvider, input.LLMModel)
+		if err := u.assignVoicesIfNeeded(voiceCtx, agents, ttsClient); err != nil {
 			return AssignDebateVoicesOutput{}, err
 		}
 	}

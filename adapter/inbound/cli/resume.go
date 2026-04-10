@@ -12,10 +12,11 @@ import (
 
 // Resume continues an existing debate and generates the requested rounds.
 // Parameters: ctx is the request context, usecases holds the debate usecases, output writes CLI output,
-// runtime holds display values, id is the debate identifier, numRounds is the number of rounds to create.
+// runtime holds display values, id is the debate identifier, numRounds is the number of rounds to create,
+// llmProvider and llmModel are optional overrides for LLM selection.
 // Returns: an error if resuming fails.
 
-func Resume(ctx context.Context, usecases *wiring.Usecases, output ResumeOutput, runtime RuntimeInfo, debateID string, numRounds int) error {
+func Resume(ctx context.Context, usecases *wiring.Usecases, output ResumeOutput, runtime RuntimeInfo, debateID string, numRounds int, llmProvider string, llmModel string) error {
 	if debateID == "" {
 		return fmt.Errorf("id is required")
 	}
@@ -24,14 +25,26 @@ func Resume(ctx context.Context, usecases *wiring.Usecases, output ResumeOutput,
 	if err != nil {
 		return err
 	}
-	if err := printDebateHeader(os.Stdout, output, loadOutput.Debate, filename, runtime); err != nil {
+	defaults := core.LLMDefaults{
+		Provider:       runtime.LLMProvider,
+		OpenAIModel:    runtime.OpenAIModel,
+		AnthropicModel: runtime.AnthropicModel,
+		GeminiModel:    runtime.GeminiModel,
+	}
+	selectedProvider, selectedModel, err := core.ResolveLLMSelection(llmProvider, llmModel, loadOutput.Debate.LLMProvider, loadOutput.Debate.LLMModel, defaults)
+	if err != nil {
+		return err
+	}
+	if err := printDebateHeader(os.Stdout, output, loadOutput.Debate, filename, runtime, selectedProvider, selectedModel); err != nil {
 		return err
 	}
 	agentLookup := buildAgentMap(loadOutput.Debate.Agents)
 	baseRound := len(loadOutput.Debate.Rounds)
 	for i := range numRounds {
 		roundOutput, err := usecases.CreateRound.Execute(ctx, core.CreateRoundInput{
-			Filename: filename,
+			Filename:    filename,
+			LLMProvider: selectedProvider,
+			LLMModel:    selectedModel,
 		})
 		if err != nil {
 			return err

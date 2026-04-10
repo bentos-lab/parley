@@ -34,11 +34,13 @@ func TestGenerateDebateNameUsecase(t *testing.T) {
 	t.Parallel()
 	llm := &stubNameLLM{generated: "Future of AI"}
 	usecase := &GenerateDebateNameUsecase{
-		LLMResolver: contract.ResolverFunc[contract.LLM](func(name string) (contract.LLM, error) {
+		LLMResolver: contract.LLMResolverFunc(func(provider string, model string) (contract.LLM, error) {
 			return llm, nil
 		}),
-		LLMProvider: "test",
-		Model:       "model",
+		Defaults: LLMDefaults{
+			Provider:    "openai",
+			OpenAIModel: "model",
+		},
 	}
 	output, err := usecase.Execute(context.Background(), GenerateDebateNameInput{Topic: "AI"})
 	require.NoError(t, err)
@@ -51,11 +53,13 @@ func TestGenerateAgentsUsecase(t *testing.T) {
 		jsonResponse: `{"agents":[{"name":"Alex","stance":"Pro"},{"name":"Sam","stance":"Con"}]}`,
 	}
 	usecase := &GenerateAgentsUsecase{
-		LLMResolver: contract.ResolverFunc[contract.LLM](func(name string) (contract.LLM, error) {
+		LLMResolver: contract.LLMResolverFunc(func(provider string, model string) (contract.LLM, error) {
 			return llm, nil
 		}),
-		LLMProvider: "test",
-		Model:       "model",
+		Defaults: LLMDefaults{
+			Provider:    "openai",
+			OpenAIModel: "model",
+		},
 	}
 	output, err := usecase.Execute(context.Background(), GenerateAgentsInput{Topic: "AI", Count: 2})
 	require.NoError(t, err)

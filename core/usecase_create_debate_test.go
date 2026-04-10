@@ -13,7 +13,13 @@ import (
 // Returns: nothing.
 func TestCreateAssignsMissingAgentIDsAllMissing(t *testing.T) {
 	t.Parallel()
-	usecase := &CreateDebateUsecase{DefaultTTSProvider: "native"}
+	usecase := &CreateDebateUsecase{
+		DefaultTTSProvider: "native",
+		LLMDefaults: LLMDefaults{
+			Provider:    "openai",
+			OpenAIModel: "model",
+		},
+	}
 	input := CreateDebateInput{
 		Name:  "Sample Debate",
 		Topic: "Sample Topic",
@@ -34,7 +40,13 @@ func TestCreateAssignsMissingAgentIDsAllMissing(t *testing.T) {
 // Returns: nothing.
 func TestCreateAssignsMissingAgentIDsMixed(t *testing.T) {
 	t.Parallel()
-	usecase := &CreateDebateUsecase{DefaultTTSProvider: "native"}
+	usecase := &CreateDebateUsecase{
+		DefaultTTSProvider: "native",
+		LLMDefaults: LLMDefaults{
+			Provider:    "openai",
+			OpenAIModel: "model",
+		},
+	}
 	input := CreateDebateInput{
 		Name:  "Mixed IDs",
 		Topic: "Sample Topic",
@@ -57,7 +69,13 @@ func TestCreateAssignsMissingAgentIDsMixed(t *testing.T) {
 // Returns: nothing.
 func TestCreateAssignsMissingAgentIDsCollision(t *testing.T) {
 	t.Parallel()
-	usecase := &CreateDebateUsecase{DefaultTTSProvider: "native"}
+	usecase := &CreateDebateUsecase{
+		DefaultTTSProvider: "native",
+		LLMDefaults: LLMDefaults{
+			Provider:    "openai",
+			OpenAIModel: "model",
+		},
+	}
 	input := CreateDebateInput{
 		Name:  "Collision IDs",
 		Topic: "Sample Topic",
@@ -76,7 +94,13 @@ func TestCreateAssignsMissingAgentIDsCollision(t *testing.T) {
 // TestCreateDebateRequiresName verifies missing names fail creation.
 func TestCreateDebateRequiresName(t *testing.T) {
 	t.Parallel()
-	usecase := &CreateDebateUsecase{DefaultTTSProvider: "native"}
+	usecase := &CreateDebateUsecase{
+		DefaultTTSProvider: "native",
+		LLMDefaults: LLMDefaults{
+			Provider:    "openai",
+			OpenAIModel: "model",
+		},
+	}
 	input := CreateDebateInput{
 		Topic: "Sample Topic",
 		Agents: []debate.DebateAgent{
@@ -90,7 +114,13 @@ func TestCreateDebateRequiresName(t *testing.T) {
 // TestCreateDebateRequiresAgents verifies missing agents fail creation.
 func TestCreateDebateRequiresAgents(t *testing.T) {
 	t.Parallel()
-	usecase := &CreateDebateUsecase{DefaultTTSProvider: "native"}
+	usecase := &CreateDebateUsecase{
+		DefaultTTSProvider: "native",
+		LLMDefaults: LLMDefaults{
+			Provider:    "openai",
+			OpenAIModel: "model",
+		},
+	}
 	input := CreateDebateInput{
 		Name:  "Sample Debate",
 		Topic: "Sample Topic",
@@ -101,7 +131,13 @@ func TestCreateDebateRequiresAgents(t *testing.T) {
 
 func TestCreateDebateUsecaseDefaultsToConfigProvider(t *testing.T) {
 	t.Parallel()
-	usecase := &CreateDebateUsecase{DefaultTTSProvider: "native"}
+	usecase := &CreateDebateUsecase{
+		DefaultTTSProvider: "native",
+		LLMDefaults: LLMDefaults{
+			Provider:    "openai",
+			OpenAIModel: "model",
+		},
+	}
 	input := CreateDebateInput{
 		Name:  "Default Provider",
 		Topic: "Sample Topic",

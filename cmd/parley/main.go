@@ -34,9 +34,11 @@ func main() {
 		log.Fatalf("build usecases: %v", err)
 	}
 	runtime := cli.RuntimeInfo{
-		LLMBaseURL: cfg.OpenAI.BaseURL,
-		LLMModel:   cfg.OpenAI.Model,
-		TTSModel:   cfg.InworldModel,
+		LLMProvider:    cfg.LLMProvider,
+		OpenAIModel:    cfg.OpenAI.Model,
+		AnthropicModel: cfg.Anthropic.Model,
+		GeminiModel:    cfg.Gemini.Model,
+		TTSModel:       cfg.InworldModel,
 	}
 	rootCmd := newRootCommand(ctx, usecases, runtime, cfg.TTSProvider)
 	if err := rootCmd.ExecuteContext(ctx); err != nil {

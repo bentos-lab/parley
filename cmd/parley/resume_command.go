@@ -30,10 +30,20 @@ func newResumeCommand(ctx context.Context, usecases *wiring.Usecases, runtime cl
 			if err != nil {
 				return err
 			}
-			return cli.Resume(commandContext(cmd, ctx), usecases, output, runtime, id, numRounds)
+			llmProvider, err := cmd.Flags().GetString("llm-provider")
+			if err != nil {
+				return err
+			}
+			llmModel, err := cmd.Flags().GetString("llm-model")
+			if err != nil {
+				return err
+			}
+			return cli.Resume(commandContext(cmd, ctx), usecases, output, runtime, id, numRounds, llmProvider, llmModel)
 		},
 	}
 	cmd.Flags().Int("num-rounds", 10, "maximum number of rounds")
 	cmd.Flags().String("format", "pretty", "output format (pretty|json)")
+	cmd.Flags().String("llm-provider", "", "override the LLM provider")
+	cmd.Flags().String("llm-model", "", "override the LLM model")
 	return cmd
 }

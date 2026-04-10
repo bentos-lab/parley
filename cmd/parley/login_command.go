@@ -65,21 +65,6 @@ func newLoginLLMCommand() *cobra.Command {
 }
 
 func handleExistingProvider(provider string) error {
-	labels := map[string]string{
-		"openai":    "https://api.openai.com/v1",
-		"anthropic": "https://api.anthropic.com/v1",
-		"gemini":    "https://generativelanguage.googleapis.com/v1beta/openai",
-	}
-	baseURL := ""
-	var err error
-	if provider == providerCustom {
-		baseURL, err = promptRequired("Enter base URL:")
-		if err != nil {
-			return err
-		}
-	} else {
-		baseURL = labels[provider]
-	}
 	apiKey, err := promptRequired("Enter API key:")
 	if err != nil {
 		return err
@@ -92,18 +77,47 @@ func handleExistingProvider(provider string) error {
 	if err != nil {
 		return err
 	}
-	config.SetNestedValue(cfgMap, []string{"llm"}, "provider", "openai")
-	config.SetNestedValue(cfgMap, []string{"llm", "openai"}, "base_url", baseURL)
-	config.SetNestedValue(cfgMap, []string{"llm", "openai"}, "api_key", apiKey)
-	config.SetNestedValue(cfgMap, []string{"llm", "openai"}, "model", model)
+	displayBaseURL := ""
+	switch provider {
+	case "openai":
+		baseURL := "https://api.openai.com/v1"
+		displayBaseURL = baseURL
+		config.SetNestedValue(cfgMap, []string{"llm"}, "provider", "openai")
+		config.SetNestedValue(cfgMap, []string{"llm", "openai"}, "base_url", baseURL)
+		config.SetNestedValue(cfgMap, []string{"llm", "openai"}, "api_key", apiKey)
+		config.SetNestedValue(cfgMap, []string{"llm", "openai"}, "model", model)
+	case "anthropic":
+		config.SetNestedValue(cfgMap, []string{"llm"}, "provider", "anthropic")
+		config.SetNestedValue(cfgMap, []string{"llm", "anthropic"}, "api_key", apiKey)
+		config.SetNestedValue(cfgMap, []string{"llm", "anthropic"}, "model", model)
+	case "gemini":
+		config.SetNestedValue(cfgMap, []string{"llm"}, "provider", "gemini")
+		config.SetNestedValue(cfgMap, []string{"llm", "gemini"}, "api_key", apiKey)
+		config.SetNestedValue(cfgMap, []string{"llm", "gemini"}, "model", model)
+	case providerCustom:
+		baseURL, err := promptRequired("Enter base URL:")
+		if err != nil {
+			return err
+		}
+		displayBaseURL = baseURL
+		config.SetNestedValue(cfgMap, []string{"llm"}, "provider", "openai")
+		config.SetNestedValue(cfgMap, []string{"llm", "openai"}, "base_url", baseURL)
+		config.SetNestedValue(cfgMap, []string{"llm", "openai"}, "api_key", apiKey)
+		config.SetNestedValue(cfgMap, []string{"llm", "openai"}, "model", model)
+	default:
+		return fmt.Errorf("unsupported provider %q", provider)
+	}
 	if err := config.WriteFileMap(cfgMap); err != nil {
 		return err
 	}
-	writeStatus("Saved LLM Settings", []string{
+	bullets := []string{
 		fmt.Sprintf("Provider: %s", provider),
 		fmt.Sprintf("Model: %s", model),
-		fmt.Sprintf("Base URL: %s", baseURL),
-	})
+	}
+	if displayBaseURL != "" {
+		bullets = append(bullets, fmt.Sprintf("Base URL: %s", displayBaseURL))
+	}
+	writeStatus("Saved LLM Settings", bullets)
 	return nil
 }
 
@@ -242,11 +256,36 @@ func promptModelSelection(provider string) (string, error) {
 	var options []string
 	switch provider {
 	case "openai":
-		options = []string{"gpt-4o", "gpt-4.1", "gpt-4.1-mini", "Custom (enter manually)"}
+		options = []string{
+			"gpt-4o",
+			"gpt-4.1-mini",
+			"gpt-4.1",
+			"gpt-5-nano",
+			"gpt-5-mini",
+			"gpt-5",
+			"gpt-5.4-nano",
+			"gpt-5.4-mini",
+			"gpt-5.4",
+			"gpt-5.4-pro",
+			"Custom (enter manually)",
+		}
 	case "anthropic":
-		options = []string{"claude-3-5-sonnet-latest", "claude-3-5-haiku-latest", "claude-3-opus-latest", "Custom (enter manually)"}
+		options = []string{
+			"claude-haiku-4-5",
+			"claude-sonnet-4-6",
+			"claude-opus-4-6",
+			"Custom (enter manually)",
+		}
 	case "gemini":
-		options = []string{"gemini-1.5-pro", "gemini-1.5-flash", "gemini-2.0-flash", "Custom (enter manually)"}
+		options = []string{
+			"gemini-2.5-flash-lite",
+			"gemini-2.5-flash",
+			"gemini-2.5-pro",
+			"gemini-3-flash-preview",
+			"gemini-3.1-flash-lite-preview",
+			"gemini-3.1-pro-preview",
+			"Custom (enter manually)",
+		}
 	default:
 		return promptRequired("Enter model:")
 	}
