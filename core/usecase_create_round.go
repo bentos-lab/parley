@@ -12,9 +12,11 @@ import (
 
 // CreateRoundInput defines the inputs for creating a debate round.
 type CreateRoundInput struct {
-	Filename string
-	AgentID  string
-	Content  string
+	Filename    string
+	AgentID     string
+	Content     string
+	LLMProvider string
+	LLMModel    string
 }
 
 // CreateRoundOutput is the result of creating a debate round.
@@ -24,9 +26,8 @@ type CreateRoundOutput struct {
 
 // CreateRoundUsecase creates rounds using the configured LLM.
 type CreateRoundUsecase struct {
-	LLMResolver contract.Resolver[contract.LLM]
-	LLMProvider string
-	Model       string
+	LLMResolver contract.LLMResolver
+	Defaults    LLMDefaults
 }
 
 // Execute creates a new round and persists the debate.
@@ -62,10 +63,11 @@ func (u *CreateRoundUsecase) createRound(ctx context.Context, debateItem *debate
 	if u.LLMResolver == nil {
 		return debate.DebateRound{}, fmt.Errorf("llm resolver is required")
 	}
-	if u.LLMProvider == "" {
-		return debate.DebateRound{}, fmt.Errorf("llm_provider is required")
+	provider, model, err := ResolveLLMSelection(input.LLMProvider, input.LLMModel, debateItem.LLMProvider, debateItem.LLMModel, u.Defaults)
+	if err != nil {
+		return debate.DebateRound{}, err
 	}
-	llm, err := u.LLMResolver.Resolve(u.LLMProvider)
+	llm, err := u.LLMResolver.Resolve(provider, model)
 	if err != nil {
 		return debate.DebateRound{}, err
 	}
@@ -97,7 +99,6 @@ func (u *CreateRoundUsecase) createRound(ctx context.Context, debateItem *debate
 		SystemInstruction: systemPrompt,
 		Messages:          messages,
 		Temperature:       roundLLMTemperature,
-		Model:             u.Model,
 		MaxTokens:         roundLLMMaxTokens,
 	}, roundResponseSchema())
 	if err != nil {

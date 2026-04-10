@@ -26,6 +26,8 @@ type Debate struct {
 	Rounds         []DebateRound        `json:"rounds"`
 	Summary        *DebateSummaryDetail `json:"summary,omitempty"`
 	TTSProvider    string               `json:"tts_provider"`
+	LLMProvider    string               `json:"llm_provider"`
+	LLMModel       string               `json:"llm_model"`
 }
 
 // DebateAgent represents a participant in the debate.
@@ -65,6 +67,8 @@ type CreateDebateInput struct {
 	Topic       string
 	Agents      []DebateAgent
 	TTSProvider string
+	LLMProvider string
+	LLMModel    string
 }
 
 const (
@@ -92,6 +96,8 @@ func Create(ctx context.Context, input CreateDebateInput) (*Debate, error) {
 		Agents:         agents,
 		Rounds:         []DebateRound{},
 		TTSProvider:    input.TTSProvider,
+		LLMProvider:    input.LLMProvider,
+		LLMModel:       input.LLMModel,
 	}
 	return debate, nil
 }

@@ -2,6 +2,8 @@ package wiring
 
 import (
 	"github.com/bentos-lab/parley/adapter/outbound/llm"
+	llmanthropic "github.com/bentos-lab/parley/adapter/outbound/llm/anthropic"
+	llmgemini "github.com/bentos-lab/parley/adapter/outbound/llm/gemini"
 	llmopenai "github.com/bentos-lab/parley/adapter/outbound/llm/openai"
 	"github.com/bentos-lab/parley/adapter/outbound/tts"
 	"github.com/bentos-lab/parley/config"
@@ -36,23 +38,38 @@ func BuildUsecases(cfg config.Config) (*Usecases, error) {
 			APIKey:  cfg.OpenAI.APIKey,
 			Model:   cfg.OpenAI.Model,
 		},
+		Anthropic: llmanthropic.Config{
+			APIKey: cfg.Anthropic.APIKey,
+			Model:  cfg.Anthropic.Model,
+		},
+		Gemini: llmgemini.Config{
+			APIKey: cfg.Gemini.APIKey,
+			Model:  cfg.Gemini.Model,
+		},
 	})
 	ttsResolver := tts.NewResolver(tts.Config{
 		InworldAPIKey: cfg.InworldAPIKey,
 		InworldModel:  cfg.InworldModel,
 	})
-	voiceAssigner := core.NewVoiceAssigner(llmResolver, cfg.LLMProvider, cfg.OpenAI.Model)
+	llmDefaults := core.LLMDefaults{
+		Provider:       cfg.LLMProvider,
+		OpenAIModel:    cfg.OpenAI.Model,
+		AnthropicModel: cfg.Anthropic.Model,
+		GeminiModel:    cfg.Gemini.Model,
+	}
+	voiceAssigner := core.NewVoiceAssigner(llmResolver, llmDefaults)
 	usecases := &Usecases{
-		CreateDebate: &core.CreateDebateUsecase{DefaultTTSProvider: cfg.TTSProvider},
+		CreateDebate: &core.CreateDebateUsecase{
+			DefaultTTSProvider: cfg.TTSProvider,
+			LLMDefaults:        llmDefaults,
+		},
 		GenerateDebateName: &core.GenerateDebateNameUsecase{
 			LLMResolver: llmResolver,
-			LLMProvider: cfg.LLMProvider,
-			Model:       cfg.OpenAI.Model,
+			Defaults:    llmDefaults,
 		},
 		GenerateDebateAgents: &core.GenerateAgentsUsecase{
 			LLMResolver: llmResolver,
-			LLMProvider: cfg.LLMProvider,
-			Model:       cfg.OpenAI.Model,
+			Defaults:    llmDefaults,
 		},
 		GenerateDebateSummary: &core.GenerateDebateSummaryUsecase{
 			LLMResolver: llmResolver,
@@ -62,6 +79,7 @@ func BuildUsecases(cfg config.Config) (*Usecases, error) {
 		AssignDebateVoices: &core.AssignDebateVoicesUsecase{
 			TTSResolver: ttsResolver,
 			VoiceAssn:   voiceAssigner,
+			Defaults:    llmDefaults,
 		},
 		LoadDebate:   &core.LoadDebateUsecase{},
 		ListDebates:  &core.ListDebatesUsecase{},
@@ -69,28 +87,29 @@ func BuildUsecases(cfg config.Config) (*Usecases, error) {
 		DeleteDebate: &core.DeleteDebateUsecase{},
 		CreateRound: &core.CreateRoundUsecase{
 			LLMResolver: llmResolver,
-			LLMProvider: cfg.LLMProvider,
-			Model:       cfg.OpenAI.Model,
+			Defaults:    llmDefaults,
 		},
 		GenerateAudio: &core.GenerateAudioUsecase{
 			TTSResolver:        ttsResolver,
 			VoiceAssn:          voiceAssigner,
 			DefaultTTSProvider: cfg.TTSProvider,
+			Defaults:           llmDefaults,
 		},
 		GetRoundAudio: &core.GetRoundAudioUsecase{
 			TTSResolver:        ttsResolver,
 			VoiceAssn:          voiceAssigner,
 			DefaultTTSProvider: cfg.TTSProvider,
+			Defaults:           llmDefaults,
 		},
 		GetDebateAudio: &core.GetDebateAudioUsecase{
 			TTSResolver:        ttsResolver,
 			VoiceAssn:          voiceAssigner,
 			DefaultTTSProvider: cfg.TTSProvider,
+			Defaults:           llmDefaults,
 		},
 		ParseParleyCommand: &core.ParseParleyCommandUsecase{
 			LLMResolver: llmResolver,
-			LLMProvider: cfg.LLMProvider,
-			Model:       cfg.OpenAI.Model,
+			Defaults:    llmDefaults,
 		},
 	}
 	return usecases, nil

@@ -10,7 +10,9 @@ import (
 
 // GenerateDebateNameInput defines inputs for generating a debate name.
 type GenerateDebateNameInput struct {
-	Topic string
+	Topic       string
+	LLMProvider string
+	LLMModel    string
 }
 
 // GenerateDebateNameOutput is the result of a debate name generation.
@@ -20,9 +22,8 @@ type GenerateDebateNameOutput struct {
 
 // GenerateDebateNameUsecase generates debate names using an LLM.
 type GenerateDebateNameUsecase struct {
-	LLMResolver contract.Resolver[contract.LLM]
-	LLMProvider string
-	Model       string
+	LLMResolver contract.LLMResolver
+	Defaults    LLMDefaults
 }
 
 const (
@@ -40,10 +41,11 @@ func (u *GenerateDebateNameUsecase) Execute(ctx context.Context, input GenerateD
 	if u.LLMResolver == nil {
 		return GenerateDebateNameOutput{}, fmt.Errorf("llm resolver is required")
 	}
-	if u.LLMProvider == "" {
-		return GenerateDebateNameOutput{}, fmt.Errorf("llm_provider is required")
+	provider, model, err := ResolveLLMSelection(input.LLMProvider, input.LLMModel, "", "", u.Defaults)
+	if err != nil {
+		return GenerateDebateNameOutput{}, err
 	}
-	llm, err := u.LLMResolver.Resolve(u.LLMProvider)
+	llm, err := u.LLMResolver.Resolve(provider, model)
 	if err != nil {
 		return GenerateDebateNameOutput{}, err
 	}
@@ -59,7 +61,6 @@ func (u *GenerateDebateNameUsecase) Execute(ctx context.Context, input GenerateD
 			{Role: "user", Content: input.Topic},
 		},
 		Temperature: debateNameLLMTemperature,
-		Model:       u.Model,
 		MaxTokens:   debateNameLLMMaxTokens,
 	})
 	if err != nil {

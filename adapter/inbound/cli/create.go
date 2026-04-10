@@ -13,13 +13,24 @@ import (
 // Create creates a new debate and generates the requested rounds.
 // Parameters: ctx is the request context, usecases holds the debate usecases, output writes CLI output,
 // runtime holds display values, topic is the debate topic, numAgents is the number of agents,
-// numRounds is the number of rounds to create, ttsProvider is the selected TTS provider.
+// numRounds is the number of rounds to create, ttsProvider is the selected TTS provider,
+// llmProvider and llmModel are optional overrides for the LLM selection.
 // Returns: an error if creation fails.
-func Create(ctx context.Context, usecases *wiring.Usecases, output CreateOutput, runtime RuntimeInfo, topic string, numAgents int, numRounds int, ttsProvider string) error {
+func Create(ctx context.Context, usecases *wiring.Usecases, output CreateOutput, runtime RuntimeInfo, topic string, numAgents int, numRounds int, ttsProvider string, llmProvider string, llmModel string) error {
 	if topic == "" {
 		return fmt.Errorf("topic is required")
 	}
-	if err := printDebateBasics(os.Stdout, output, topic, ttsProvider, runtime); err != nil {
+	defaults := core.LLMDefaults{
+		Provider:       runtime.LLMProvider,
+		OpenAIModel:    runtime.OpenAIModel,
+		AnthropicModel: runtime.AnthropicModel,
+		GeminiModel:    runtime.GeminiModel,
+	}
+	selectedProvider, selectedModel, err := core.ResolveLLMSelection(llmProvider, llmModel, "", "", defaults)
+	if err != nil {
+		return err
+	}
+	if err := printDebateBasics(os.Stdout, output, topic, ttsProvider, runtime, selectedProvider, selectedModel); err != nil {
 		return err
 	}
 
@@ -27,7 +38,9 @@ func Create(ctx context.Context, usecases *wiring.Usecases, output CreateOutput,
 		return fmt.Errorf("name generator is required")
 	}
 	nameOutput, err := usecases.GenerateDebateName.Execute(ctx, core.GenerateDebateNameInput{
-		Topic: topic,
+		Topic:       topic,
+		LLMProvider: selectedProvider,
+		LLMModel:    selectedModel,
 	})
 	if err != nil {
 		return err
@@ -43,8 +56,10 @@ func Create(ctx context.Context, usecases *wiring.Usecases, output CreateOutput,
 		return fmt.Errorf("agent generator is required")
 	}
 	agentsOutput, err := usecases.GenerateDebateAgents.Execute(ctx, core.GenerateAgentsInput{
-		Topic: topic,
-		Count: numAgents,
+		Topic:       topic,
+		Count:       numAgents,
+		LLMProvider: selectedProvider,
+		LLMModel:    selectedModel,
 	})
 	if err != nil {
 		return err
@@ -56,6 +71,8 @@ func Create(ctx context.Context, usecases *wiring.Usecases, output CreateOutput,
 	voicesOutput, err := usecases.AssignDebateVoices.Execute(ctx, core.AssignDebateVoicesInput{
 		Agents:      agents,
 		TTSProvider: ttsProvider,
+		LLMProvider: selectedProvider,
+		LLMModel:    selectedModel,
 	})
 	if err != nil {
 		return err
@@ -67,6 +84,8 @@ func Create(ctx context.Context, usecases *wiring.Usecases, output CreateOutput,
 		Topic:       topic,
 		Agents:      agents,
 		TTSProvider: ttsProvider,
+		LLMProvider: selectedProvider,
+		LLMModel:    selectedModel,
 	})
 	if err != nil {
 		return err
@@ -77,7 +96,9 @@ func Create(ctx context.Context, usecases *wiring.Usecases, output CreateOutput,
 	agentLookup := buildAgentMap(result.Debate.Agents)
 	for i := 0; i < numRounds; i++ {
 		roundOutput, err := usecases.CreateRound.Execute(ctx, core.CreateRoundInput{
-			Filename: result.Filename,
+			Filename:    result.Filename,
+			LLMProvider: selectedProvider,
+			LLMModel:    selectedModel,
 		})
 		if err != nil {
 			return err

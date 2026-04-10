@@ -6,10 +6,14 @@ Description: Returns the runtime configuration that the HTTP server is currently
 
 - Response (JSON):
 -
-- `llm.provider`: Currently active LLM provider (`openai`).
+- `llm.provider`: Currently active LLM provider (`openai`, `anthropic`, `gemini`).
 - `llm.openai.base_url`: The OpenAI-compatible base URL.
-- `llm.openai.api_key`: The API key currently in use (empty if not configured).
-- `llm.openai.model`: The active model.
+- `llm.openai.api_key`: The OpenAI API key (empty if not configured).
+- `llm.openai.model`: The OpenAI model.
+- `llm.anthropic.api_key`: The Anthropic API key (empty if not configured).
+- `llm.anthropic.model`: The Anthropic model.
+- `llm.gemini.api_key`: The Gemini API key (empty if not configured).
+- `llm.gemini.model`: The Gemini model.
 - `tts.provider`: Either `native` or `inworld`.
 - `tts.inworld.api_key`: The configured Inworld API key (empty if not set).
 - `tts.inworld.model`: The configured Inworld model.
@@ -21,10 +25,16 @@ Description: Updates one or both configuration sections (`llm` and `tts`) in a s
 Request (JSON):
 
 - `llm` (optional)
-  - `provider`: Optional override (supported values `openai`).
+  - `provider`: Optional override (supported values `openai`, `anthropic`, `gemini`).
+    - Switching to `anthropic` requires providing `llm.anthropic.api_key`.
+    - Switching to `gemini` requires providing `llm.gemini.api_key`.
   - `openai.base_url`: Optional new API URL.
   - `openai.api_key`: Optional API key (stored verbatim).
   - `openai.model`: Optional model override.
+  - `anthropic.api_key`: Optional API key for Anthropic.
+  - `anthropic.model`: Optional model for Anthropic.
+  - `gemini.api_key`: Optional API key for Gemini.
+  - `gemini.model`: Optional model for Gemini.
 - `tts` (optional)
   - `provider`: Optional provider override. Valid values are `native` and `inworld`.
     - Switching to `inworld` requires providing `tts.inworld.api_key` even if the key already exists on disk.

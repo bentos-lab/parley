@@ -21,9 +21,10 @@ type GetRoundAudioOutput struct {
 
 // GetRoundAudioUsecase ensures round audio exists and returns its path.
 type GetRoundAudioUsecase struct {
-	TTSResolver        contract.Resolver[contract.TTS]
+	TTSResolver        contract.TTSResolver
 	VoiceAssn          contract.AssignVoices
 	DefaultTTSProvider string // fallback provider when the stored debate value is empty.
+	Defaults           LLMDefaults
 }
 
 // Execute ensures a single round has audio and returns the audio path.
@@ -46,7 +47,8 @@ func (u *GetRoundAudioUsecase) Execute(ctx context.Context, input GetRoundAudioI
 	if err != nil {
 		return GetRoundAudioOutput{}, err
 	}
-	if err := u.assignVoicesIfNeeded(ctx, debateItem, ttsClient); err != nil {
+	voiceCtx := WithLLMSelection(ctx, debateItem.LLMProvider, debateItem.LLMModel)
+	if err := u.assignVoicesIfNeeded(voiceCtx, debateItem, ttsClient); err != nil {
 		return GetRoundAudioOutput{}, err
 	}
 	path, err := debateItem.SynthesizeRound(ctx, ttsClient, input.Index)

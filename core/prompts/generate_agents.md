@@ -12,7 +12,7 @@ Topic: {{ .Topic }}
 
 Rules:
 - Name must be a very random real human-like.
-- Stance: A viewpoint on the topic; each agent must have a different viewpoint.
+- Stance: "agree with the topic" or "disagree with the topic". Just agree or disagree with the topic. Do not give reason.
 
 Notes:
 - Do not add subject as she/he in the begin of stance.

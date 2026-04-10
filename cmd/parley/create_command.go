@@ -38,11 +38,21 @@ func newCreateCommand(ctx context.Context, usecases *wiring.Usecases, runtime cl
 			if err != nil {
 				return err
 			}
-			return cli.Create(commandContext(cmd, ctx), usecases, output, runtime, topic, numAgents, numRounds, ttsProvider)
+			llmProvider, err := cmd.Flags().GetString("llm-provider")
+			if err != nil {
+				return err
+			}
+			llmModel, err := cmd.Flags().GetString("llm-model")
+			if err != nil {
+				return err
+			}
+			return cli.Create(commandContext(cmd, ctx), usecases, output, runtime, topic, numAgents, numRounds, ttsProvider, llmProvider, llmModel)
 		},
 	}
 	cmd.Flags().Int("num-agents", 2, "number of agents to auto-generate")
 	cmd.Flags().Int("num-rounds", 10, "maximum number of rounds")
 	cmd.Flags().String("format", "pretty", "output format (pretty|json)")
+	cmd.Flags().String("llm-provider", "", "override the LLM provider")
+	cmd.Flags().String("llm-model", "", "override the LLM model")
 	return cmd
 }

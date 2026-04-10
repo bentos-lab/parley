@@ -14,9 +14,8 @@ import (
 
 // VoiceAssigner assigns voices to agents using an LLM.
 type VoiceAssigner struct {
-	llmResolver contract.Resolver[contract.LLM]
-	llmProvider string
-	model       string
+	llmResolver contract.LLMResolver
+	defaults    LLMDefaults
 }
 
 const (
@@ -27,8 +26,8 @@ const (
 )
 
 // NewVoiceAssigner creates a VoiceAssigner with dependencies.
-func NewVoiceAssigner(llmResolver contract.Resolver[contract.LLM], llmProvider string, model string) *VoiceAssigner {
-	return &VoiceAssigner{llmResolver: llmResolver, llmProvider: llmProvider, model: model}
+func NewVoiceAssigner(llmResolver contract.LLMResolver, defaults LLMDefaults) *VoiceAssigner {
+	return &VoiceAssigner{llmResolver: llmResolver, defaults: defaults}
 }
 
 // AssignVoices assigns voices to agents based on the available catalog and existing assignments.
@@ -40,10 +39,12 @@ func (g *VoiceAssigner) AssignVoices(ctx context.Context, voices map[string]stri
 	if g.llmResolver == nil {
 		return nil, fmt.Errorf("llm resolver is required")
 	}
-	if g.llmProvider == "" {
-		return nil, fmt.Errorf("llm_provider is required")
+	overrideProvider, overrideModel := LLMSelectionFromContext(ctx)
+	provider, model, err := ResolveLLMSelection(overrideProvider, overrideModel, "", "", g.defaults)
+	if err != nil {
+		return nil, err
 	}
-	llm, err := g.llmResolver.Resolve(g.llmProvider)
+	llm, err := g.llmResolver.Resolve(provider, model)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +65,6 @@ func (g *VoiceAssigner) AssignVoices(ctx context.Context, voices map[string]stri
 		SystemInstruction: systemPrompt,
 		Messages:          []contract.LLMMessage{{Role: "user", Content: "Assign voices to agents."}},
 		Temperature:       voiceAssignLLMTemperature,
-		Model:             g.model,
 		MaxTokens:         voiceAssignLLMMaxTokens,
 	}, voiceAssignmentSchema())
 	if err != nil {

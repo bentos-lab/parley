@@ -11,8 +11,10 @@ import (
 
 // GenerateAgentsInput defines inputs for generating debate agents.
 type GenerateAgentsInput struct {
-	Topic string
-	Count int
+	Topic       string
+	Count       int
+	LLMProvider string
+	LLMModel    string
 }
 
 // GenerateAgentsOutput is the result of a debate agent generation.
@@ -22,9 +24,8 @@ type GenerateAgentsOutput struct {
 
 // GenerateAgentsUsecase generates debate agents using an LLM.
 type GenerateAgentsUsecase struct {
-	LLMResolver contract.Resolver[contract.LLM]
-	LLMProvider string
-	Model       string
+	LLMResolver contract.LLMResolver
+	Defaults    LLMDefaults
 }
 
 type agentsResponse struct {
@@ -54,10 +55,11 @@ func (u *GenerateAgentsUsecase) Execute(ctx context.Context, input GenerateAgent
 	if u.LLMResolver == nil {
 		return GenerateAgentsOutput{}, fmt.Errorf("llm resolver is required")
 	}
-	if u.LLMProvider == "" {
-		return GenerateAgentsOutput{}, fmt.Errorf("llm_provider is required")
+	provider, model, err := ResolveLLMSelection(input.LLMProvider, input.LLMModel, "", "", u.Defaults)
+	if err != nil {
+		return GenerateAgentsOutput{}, err
 	}
-	llm, err := u.LLMResolver.Resolve(u.LLMProvider)
+	llm, err := u.LLMResolver.Resolve(provider, model)
 	if err != nil {
 		return GenerateAgentsOutput{}, err
 	}
@@ -74,7 +76,6 @@ func (u *GenerateAgentsUsecase) Execute(ctx context.Context, input GenerateAgent
 			{Role: "user", Content: input.Topic},
 		},
 		Temperature: agentsLLMTemperature,
-		Model:       u.Model,
 		MaxTokens:   agentsLLMMaxTokens,
 	}, agentsResponseSchema())
 	if err != nil {

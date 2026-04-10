@@ -22,9 +22,10 @@ type GenerateAudioOutput struct {
 
 // GenerateAudioUsecase generates audio with optional overrides.
 type GenerateAudioUsecase struct {
-	TTSResolver        contract.Resolver[contract.TTS]
+	TTSResolver        contract.TTSResolver
 	VoiceAssn          contract.AssignVoices
 	DefaultTTSProvider string // default provider used when debate lacks one and override is absent.
+	Defaults           LLMDefaults
 }
 
 // Execute produces and saves audio for a debate using optional overrides.
@@ -52,7 +53,8 @@ func (u *GenerateAudioUsecase) Execute(ctx context.Context, input GenerateAudioI
 	if err := u.applyAudioOverrides(working, ttsClient, input.AgentVoices); err != nil {
 		return GenerateAudioOutput{}, err
 	}
-	if err := u.assignVoicesIfNeeded(ctx, working, ttsClient); err != nil {
+	voiceCtx := WithLLMSelection(ctx, working.LLMProvider, working.LLMModel)
+	if err := u.assignVoicesIfNeeded(voiceCtx, working, ttsClient); err != nil {
 		return GenerateAudioOutput{}, err
 	}
 	path, err := working.Synthesize(ctx, ttsClient)

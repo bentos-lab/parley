@@ -20,9 +20,10 @@ type GetDebateAudioOutput struct {
 
 // GetDebateAudioUsecase ensures debate audio exists and returns its path.
 type GetDebateAudioUsecase struct {
-	TTSResolver        contract.Resolver[contract.TTS]
+	TTSResolver        contract.TTSResolver
 	VoiceAssn          contract.AssignVoices
 	DefaultTTSProvider string // fallback provider when the stored debate value is empty.
+	Defaults           LLMDefaults
 }
 
 // Execute ensures audio exists for the debate and returns the file path.
@@ -45,7 +46,8 @@ func (u *GetDebateAudioUsecase) Execute(ctx context.Context, input GetDebateAudi
 	if err != nil {
 		return GetDebateAudioOutput{}, err
 	}
-	if err := u.assignVoicesIfNeeded(ctx, debateItem, ttsClient); err != nil {
+	voiceCtx := WithLLMSelection(ctx, debateItem.LLMProvider, debateItem.LLMModel)
+	if err := u.assignVoicesIfNeeded(voiceCtx, debateItem, ttsClient); err != nil {
 		return GetDebateAudioOutput{}, err
 	}
 	expectedPath, err := debateItem.DebateAudioPath()

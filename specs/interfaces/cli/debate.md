@@ -7,7 +7,7 @@ Refer to the features guide in `specs/features/debates.md`.
 Usage:
 
 ```sh
-<cli> create [topic] [--num-agents int default 2] [--num-rounds int default 10] [--tts-provider string default from config]
+<cli> create [topic] [--num-agents int default 2] [--num-rounds int default 10] [--tts-provider string default from config] [--llm-provider string] [--llm-model string]
 ```
 
 Behavior:
@@ -16,6 +16,8 @@ Behavior:
 - `--num-agents`: Number of agents to auto-generate.
 - `--num-rounds`: Maximum number of rounds to generate.
 - `--tts-provider`: Optional TTS provider override for this debate (default: config `tts.provider`, which is `native` when unset).
+- `--llm-provider`: Optional LLM provider override for this debate (default: config `llm.provider`).
+- `--llm-model`: Optional LLM model override for this debate (default: provider-specific config model).
 - Create a new debate with the given topic. The name and agents are generated automatically.
 - Immediately print a basic header with app/model info and the topic.
 - Generate the debate name and print it as muted text.
@@ -32,13 +34,15 @@ Behavior:
 Usage:
 
 ```sh
-<cli> resume [id] [--num-rounds int default 10]
+<cli> resume [id] [--num-rounds int default 10] [--llm-provider string] [--llm-model string]
 ```
 
 Behavior:
 
 - `id`: Debate identifier produced by `create` or listed via `list` (omit the `.json` suffix).
 - `--num-rounds`: Maximum number of rounds to generate.
+- `--llm-provider`: Optional LLM provider override for this resume run.
+- `--llm-model`: Optional LLM model override for this resume run.
 - Load the debate by converting the ID to the stored filename.
 - Print a debate header that includes the debate name, topic, identifier, and agent details.
 - Print each generated round as a card with two bullets: `Voice` (formatted message) and `Summary` (plain text).

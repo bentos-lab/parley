@@ -15,6 +15,8 @@ type createDebateRequest struct {
 	NumAgents   int                  `json:"num_agents"`
 	TTSProvider string               `json:"tts_provider"`
 	AgentVoices map[string]string    `json:"agent_voices"`
+	LLMProvider string               `json:"llm_provider"`
+	LLMModel    string               `json:"llm_model"`
 }
 
 type createDebateResponse struct {
@@ -42,6 +44,17 @@ func (h *Handler) createDebate(w http.ResponseWriter, r *http.Request) {
 	if req.TTSProvider == "" {
 		req.TTSProvider = cfg.TTSProvider
 	}
+	defaults := core.LLMDefaults{
+		Provider:       cfg.LLMProvider,
+		OpenAIModel:    cfg.OpenAI.Model,
+		AnthropicModel: cfg.Anthropic.Model,
+		GeminiModel:    cfg.Gemini.Model,
+	}
+	llmProvider, llmModel, err := core.ResolveLLMSelection(req.LLMProvider, req.LLMModel, "", "", defaults)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	name := req.Name
 	if name == "" {
 		if usecases.GenerateDebateName == nil {
@@ -49,7 +62,9 @@ func (h *Handler) createDebate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		nameOutput, err := usecases.GenerateDebateName.Execute(r.Context(), core.GenerateDebateNameInput{
-			Topic: req.Topic,
+			Topic:       req.Topic,
+			LLMProvider: llmProvider,
+			LLMModel:    llmModel,
 		})
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
@@ -68,8 +83,10 @@ func (h *Handler) createDebate(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		agentsOutput, err := usecases.GenerateDebateAgents.Execute(r.Context(), core.GenerateAgentsInput{
-			Topic: req.Topic,
-			Count: req.NumAgents,
+			Topic:       req.Topic,
+			Count:       req.NumAgents,
+			LLMProvider: llmProvider,
+			LLMModel:    llmModel,
 		})
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
@@ -85,6 +102,8 @@ func (h *Handler) createDebate(w http.ResponseWriter, r *http.Request) {
 		Agents:      agents,
 		TTSProvider: req.TTSProvider,
 		AgentVoices: req.AgentVoices,
+		LLMProvider: llmProvider,
+		LLMModel:    llmModel,
 	})
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -96,6 +115,8 @@ func (h *Handler) createDebate(w http.ResponseWriter, r *http.Request) {
 		Topic:       req.Topic,
 		Agents:      agents,
 		TTSProvider: req.TTSProvider,
+		LLMProvider: llmProvider,
+		LLMModel:    llmModel,
 	})
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())

@@ -2,7 +2,6 @@ package cli
 
 import (
 	"io"
-	"net/url"
 	"strings"
 
 	"github.com/bentos-lab/parley/adapter/outbound/tts/native"
@@ -12,17 +11,17 @@ import (
 const appName = "Debate"
 
 type RuntimeInfo struct {
-	LLMBaseURL string
-	LLMModel   string
-	TTSModel   string
+	LLMProvider    string
+	OpenAIModel    string
+	AnthropicModel string
+	GeminiModel    string
+	TTSModel       string
 }
-
-const llmProviderCustomLabel = "OpenAI-Compatible (Custom)"
 
 // printDebateHeader prints the debate header and agents list to the provided writer.
 // Parameters: writer is the output destination, debateItem is the debate to summarize, filename is the debate file name.
 // Returns: an error if writing fails.
-func printDebateHeader(writer io.Writer, output DebateStreamOutput, debateItem *debate.Debate, filename string, runtime RuntimeInfo) error {
+func printDebateHeader(writer io.Writer, output DebateStreamOutput, debateItem *debate.Debate, filename string, runtime RuntimeInfo, llmProvider string, llmModel string) error {
 	ttsProvider := displayTTSProvider(debateItem.TTSProvider)
 	summary := DebateSummary{
 		Name:        debateItem.Name,
@@ -31,8 +30,8 @@ func printDebateHeader(writer io.Writer, output DebateStreamOutput, debateItem *
 		File:        filename,
 		AppName:     appName,
 		AgentsCount: len(debateItem.Agents),
-		LLMProvider: resolveLLMProvider(runtime.LLMBaseURL),
-		LLMModel:    runtime.LLMModel,
+		LLMProvider: llmProvider,
+		LLMModel:    llmModel,
 		TTSModel:    resolveTTSModel(ttsProvider, runtime.TTSModel),
 	}
 	agentRows := buildAgentRows(debateItem.Agents)
@@ -40,14 +39,14 @@ func printDebateHeader(writer io.Writer, output DebateStreamOutput, debateItem *
 }
 
 // printDebateBasics prints the initial debate basics immediately.
-func printDebateBasics(writer io.Writer, output CreateOutput, topic string, ttsProvider string, runtime RuntimeInfo) error {
+func printDebateBasics(writer io.Writer, output CreateOutput, topic string, ttsProvider string, runtime RuntimeInfo, llmProvider string, llmModel string) error {
 	displayProvider := displayTTSProvider(ttsProvider)
 	basics := DebateBasics{
 		Topic:       topic,
 		TTSProvider: displayProvider,
 		AppName:     appName,
-		LLMProvider: resolveLLMProvider(runtime.LLMBaseURL),
-		LLMModel:    runtime.LLMModel,
+		LLMProvider: llmProvider,
+		LLMModel:    llmModel,
 		TTSModel:    resolveTTSModel(displayProvider, runtime.TTSModel),
 	}
 	return output.DebateBasics(writer, basics)
@@ -129,29 +128,6 @@ func displayVoiceName(voiceName string) string {
 		return "(none)"
 	}
 	return voiceName
-}
-
-func resolveLLMProvider(baseURL string) string {
-	host := strings.ToLower(strings.TrimSpace(baseURL))
-	if host == "" {
-		return llmProviderCustomLabel
-	}
-	if strings.HasPrefix(host, "http://") || strings.HasPrefix(host, "https://") {
-		parsed, err := url.Parse(host)
-		if err == nil && parsed.Host != "" {
-			host = parsed.Host
-		}
-	}
-	switch {
-	case strings.Contains(host, "api.openai.com"):
-		return "openai"
-	case strings.Contains(host, "api.anthropic.com"):
-		return "anthropic"
-	case strings.Contains(host, "generativelanguage.googleapis.com"):
-		return "gemini"
-	default:
-		return llmProviderCustomLabel
-	}
 }
 
 func resolveTTSModel(provider string, inworldModel string) string {

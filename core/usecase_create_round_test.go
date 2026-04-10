@@ -10,11 +10,15 @@ import (
 )
 
 type stubLLM struct {
-	jsonResponse       string
-	generateCalled     bool
-	generateJSONCalled bool
-	lastReq            contract.LLMRequest
-	lastSchema         *contract.LLMJSONSchema
+	jsonResponse        string
+	jsonResponses       []string
+	generateCalled      bool
+	generateJSONCalled  bool
+	generateJSONCalls   int
+	lastReq             contract.LLMRequest
+	lastSchema          *contract.LLMJSONSchema
+	generateJSONReqs    []contract.LLMRequest
+	generateJSONSchemas []*contract.LLMJSONSchema
 }
 
 func (s *stubLLM) Generate(ctx context.Context, req contract.LLMRequest) (string, error) {
@@ -27,6 +31,14 @@ func (s *stubLLM) GenerateJSON(ctx context.Context, req contract.LLMRequest, sch
 	s.generateJSONCalled = true
 	s.lastReq = req
 	s.lastSchema = schema
+	s.generateJSONCalls++
+	s.generateJSONReqs = append(s.generateJSONReqs, req)
+	s.generateJSONSchemas = append(s.generateJSONSchemas, schema)
+	if len(s.jsonResponses) > 0 {
+		response := s.jsonResponses[0]
+		s.jsonResponses = s.jsonResponses[1:]
+		return response, nil
+	}
 	return s.jsonResponse, nil
 }
 
@@ -55,11 +67,13 @@ func TestGenerateRoundStoresStructuredFields(t *testing.T) {
 	}
 
 	usecase := &CreateRoundUsecase{
-		LLMResolver: contract.ResolverFunc[contract.LLM](func(name string) (contract.LLM, error) {
+		LLMResolver: contract.LLMResolverFunc(func(provider string, model string) (contract.LLM, error) {
 			return llm, nil
 		}),
-		LLMProvider: "test",
-		Model:       "model",
+		Defaults: LLMDefaults{
+			Provider:    "openai",
+			OpenAIModel: "model",
+		},
 	}
 	roundOutput, err := usecase.Execute(context.Background(), CreateRoundInput{
 		Filename: filename,
@@ -94,11 +108,13 @@ func TestGenerateRoundAllowsEmptyRebuttalFields(t *testing.T) {
 	}
 
 	usecase := &CreateRoundUsecase{
-		LLMResolver: contract.ResolverFunc[contract.LLM](func(name string) (contract.LLM, error) {
+		LLMResolver: contract.LLMResolverFunc(func(provider string, model string) (contract.LLM, error) {
 			return llm, nil
 		}),
-		LLMProvider: "test",
-		Model:       "model",
+		Defaults: LLMDefaults{
+			Provider:    "openai",
+			OpenAIModel: "model",
+		},
 	}
 	roundOutput, err := usecase.Execute(context.Background(), CreateRoundInput{
 		Filename: filename,
